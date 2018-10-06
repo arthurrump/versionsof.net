@@ -7,8 +7,9 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Fable.Core" Version="2.0.0" />
-    <PackageReference Include="Fable.React" Version="4.0.0-alpha-001" />
-    <PackageReference Include="Fable.Elmish.React" Version="1.0.3" />
-    <DotNetCliToolReference Include="dotnet-fable" Version="2.0.0" />
+    <PackageReference Include="Fable.React" Version="4.0.1" />
+    <PackageReference Include="Fable.Elmish.React" Version="2.0.0" />
+    <DotNetCliToolReference Include="dotnet-fable" Version="2.0.3" />
+    <PackageReference Include="Thoth.Json" Version="2.1.0" />
   </ItemGroup>
 </Project>
