@@ -84,11 +84,21 @@ module App =
 
     let view (model:Model) dispatch =
         match model with
-        | Unloaded | Loading -> str "Loading index..."
+        | Unloaded | Loading -> 
+            div [ Class "main-loading" ] 
+                [ div [ Class "loading" ] [ ] ]
         | Error ex ->
-            div []
-                [ str (sprintf "Could not load, error: %s" ex.Message)
-                  button [ OnClick (fun _ -> dispatch (LoadIndex)) ] [ str "Retry" ] ]
+            div [ Class "main-error" ]
+                [ div [ Class "container" ]
+                      [ span [ Class "error-symbol" ] 
+                             [ str "×" ]
+                        span [ Class "error-title" ] 
+                             [ str "An error occurred." ]
+                        button [ Class "error-retry-button"
+                                 OnClick (fun _ -> dispatch LoadIndex) ] 
+                               [ str "Try again" ]
+                        span [ Class "error-details" ]
+                             [ str (sprintf "Details: %s" ex.Message) ] ] ]
         | Loaded channels ->
             div [] 
                 [ for c in channels ->
