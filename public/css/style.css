@@ -162,9 +162,6 @@ nav > .container {
     display: flex;
     flex-flow: row nowrap;
     justify-content: flex-start;
-}
-
-nav > .container {
     overflow-y: hidden;
 }
 
@@ -192,6 +189,10 @@ nav a.active {
     order: -1;
 }
 
+#releases { 
+    overflow-y: hidden;
+}
+
 #releases table {
     border-collapse: collapse;
     border-spacing: 0px;
@@ -213,4 +214,41 @@ nav a.active {
     vertical-align: top;
     border: solid #e3e3e3;
     border-width: 1px 0 0;
+    white-space: nowrap;
+}
+
+.support-box {
+    display: flex;
+    align-content: center;
+}
+
+.support-indicator {
+    align-self: center;
+    height: 1rem;
+    width: 1rem;
+    border-radius: 100%;
+    border: none;
+    box-sizing: border-box;
+    margin-right: 0.5rem;
+    font-size: 0.85rem;
+    line-height: 0.85rem;
+    text-align: center;
+    cursor: default;
+}
+
+.green {
+    background: #28a745;
+}
+
+.yellow {
+    background: #ffc107;
+}
+
+.red {
+    background: #dc3545;
+}
+
+.unknown {
+    border: 0.05rem solid #000;
+    color: #000;
 }

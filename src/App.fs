@@ -58,8 +58,6 @@ module App =
 
     let init () = Loading, fetchIndexCmd
 
-    let yyyymmdd (date: DateTime) = date.ToString("yyyy-MM-dd")
-
     let update (msg:Msg) (model:Model) =
         match msg with
         | LoadIndex ->
@@ -83,6 +81,29 @@ module App =
             | Index -> Error ex, Cmd.none
             | Channel url ->
                 model |> Loadable.map (setChannelInfoFor url (Error ex)), Cmd.none
+
+    let dateToHtmlTime (date: DateTime) = 
+        let s = date.ToString("yyyy-MM-dd")
+        time [ Props.DateTime s ] [ str s ]
+
+    let supportIndicator supportPhase =
+        match supportPhase with
+        | "lts" -> 
+            [ span [ Class "support-indicator green"
+                     Title "Long Term Support" ] [ ]
+              span [ ] [ str "Long Term Support" ] ]
+        | "eol" -> 
+            [ span [ Class "support-indicator red"
+                     Title "End of Life" ] [ ]
+              span [ ] [ str "End of Life" ] ]
+        | "maintenance" -> 
+            [ span [ Class "support-indicator yellow"
+                     Title "Maintenance" ] [ ]
+              span [ ] [ str "Maintenance" ] ]
+        | t -> 
+            [ div [ Class "support-indicator unknown" 
+                    Title t ] [ str "?" ]
+              span [ ] [ str t ] ]
 
     let view (model:Model) dispatch =
         match model with
@@ -141,20 +162,21 @@ module App =
                           [ h2 [ ] [ str "Releases" ]
                             table [ ]       
                                   [ thead [ ]
-                                          [ th [ ] [ str "Channel" ]
-                                            th [ ] [ str "Latest release" ]
-                                            th [ ] [ str "Support" ]
-                                            th [ ] [ str "End of life date" ] ] 
+                                          [ tr [ ]
+                                               [ th [ ] [ str "Channel" ]
+                                                 th [ ] [ str "Latest release" ]
+                                                 th [ ] [ str "Support" ]
+                                                 th [ ] [ str "End of Life date" ] ] ]
                                     tbody [ ]
                                           [ for c in channels ->
                                                 let i = c.Index
                                                 tr [ ]
                                                    [ td [ ] [ str i.ChannelVersion ]
                                                      td [ ] [ str i.LatestRelease ]
-                                                     td [ ] [ str i.SupportPhase ]
-                                                     td [ ] [ str ( match i.EolDate with
-                                                                    | Some d -> yyyymmdd d
-                                                                    | None -> "-" ) ] ] ] ] ] ]
+                                                     td [ ] [ div [ Class "support-box" ] ( supportIndicator i.SupportPhase ) ]
+                                                     td [ ] [ ( match i.EolDate with
+                                                                | Some d -> dateToHtmlTime d
+                                                                | None -> str "-" ) ] ] ] ] ] ]
 
     // App
     Program.mkProgram init update view
