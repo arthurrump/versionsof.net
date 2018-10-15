@@ -24,6 +24,20 @@ body {
     }
 }
 
+.row {
+    display: flex;
+    flex-flow: row wrap;
+    justify-content: space-evenly;
+}
+
+.column {
+    display: flex;
+    flex-flow: column nowrap;
+    align-items: center
+}
+
+_:-ms-lang(x), .row { justify-content: space-around; } 
+
 button {
     background: transparent;
     height: 42px;
@@ -51,15 +65,20 @@ button:hover {
 }
 
 .loading {
-    position: absolute;
-    left: 50%;
-    top: 50%;
     border-radius: 100%;
     border: 10px dotted #fff;
     animation: rotate 3s infinite ease;
 }
 
+@keyframes rotate {
+    0% { transform: rotateZ(0deg); }
+    100% { transform: rotateZ(360deg); }
+}
+
 .main-loading .loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
     width: 100px;
     height: 100px;
     margin: -50px 0 0 -50px;
@@ -70,12 +89,6 @@ button:hover {
     color: #fff;
     min-height: 100vh;
     min-width: 100vw;
-}
-
-.main-error > .container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
 }
 
 .error-symbol {
@@ -105,7 +118,53 @@ button:hover {
     font-size: 0.8rem;
 }
   
-@keyframes rotate {
-    0% { transform: rotateZ(0deg); }
-    100% { transform: rotateZ(360deg); }
+.header, .navbar {
+    background: #512bd4;
+    color: #fff;
+}
+
+.header .cell {
+    margin: 20px;
+    display: grid;
+    grid-template-rows: 1fr auto;
+}
+
+.header .loading {
+    width: 4.0rem;
+    height: 4.0rem;
+    margin: -1.0rem, 1.0rem, 1.0rem, -1.0rem;
+    grid-row: 1;
+}
+
+.header .version {
+    font-size: 6.0rem;
+    margin: 20px 0;
+    grid-row: 1;
+    justify-self: center;
+    align-self: center;
+}
+
+.header .label {
+    grid-row: 2;
+    align-self: center;
+    text-align: center;
+}
+
+.navbar > .row {
+    justify-content: flex-start;
+}
+
+.navbar a, .navbar span {
+    font-size: 1.4rem;
+    font-weight: lighter;
+    margin: 1em 1em 0 0;
+}
+
+.navbar a {
+    color: #fff;
+    text-decoration: none;
+}
+
+.navbar a.active {
+    border-bottom: .08em solid #fff;
 }

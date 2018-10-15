@@ -77,8 +77,7 @@ module App =
             model |> Loadable.map (setChannelInfoFor url (Loaded info)), Cmd.none
         | FetchError (file, ex) -> 
             match file with
-            | Index -> 
-                Error ex, Cmd.none // TODO: exponential backoff with limit
+            | Index -> Error ex, Cmd.none
             | Channel url ->
                 model |> Loadable.map (setChannelInfoFor url (Error ex)), Cmd.none
 
@@ -89,7 +88,7 @@ module App =
                 [ div [ Class "loading" ] [ ] ]
         | Error ex ->
             div [ Class "main-error" ]
-                [ div [ Class "container" ]
+                [ div [ Class "container column" ]
                       [ span [ Class "error-symbol" ] 
                              [ str "×" ]
                         span [ Class "error-title" ] 
@@ -100,24 +99,36 @@ module App =
                         span [ Class "error-details" ]
                              [ str (sprintf "Details: %s" ex.Message) ] ] ]
         | Loaded channels ->
-            div [] 
-                [ for c in channels ->
-                     div [] [ str (sprintf "%s - %s" c.Index.ChannelVersion c.Index.LatestRelease)
-                              br []
-                              (match c.Info with
-                               | Loaded info -> str (sprintf "Sdk: %s" info.Releases.Head.Sdk.Version)
-                               | Loading -> str "Loading Sdk..."
-                               | Error ex -> 
-                                    div [ ]
-                                        [ str (sprintf "Could not load, error: %s" ex.Message)
-                                          button [ OnClick (fun _ -> dispatch (LoadChannel c.Index.ReleasesJson)) ]  [str "Retry" ] ]
-                               | Unloaded -> button [ OnClick (fun _ -> dispatch (LoadChannel c.Index.ReleasesJson)) ] [ str "Load Sdk" ])
-                              br []
-                              (match c.Index.EolDate with
-                               | Some eol -> str (sprintf "EOL: %s" (Date.Format.localFormat Date.Local.german "yyyy-MM-dd" eol))
-                               | None -> str "No known end of life")
-                              br []
-                              br [] ] ]
+            let latestReleaseChannel = channels |> List.maxBy (fun c -> c.Index.LatestRelease)
+            let latestRelease = latestReleaseChannel.Index.LatestRelease
+            let latestReleaseDate = latestReleaseChannel.Info |> Loadable.map (fun i -> i.LatestReleaseDate)
+            let latestSdk = 
+                latestReleaseChannel.Info 
+                |> Loadable.map (fun i -> i.Releases 
+                                          |> List.maxBy (fun r -> r.Sdk.Version)
+                                          |> fun r -> match r.Sdk.VersionDisplay with
+                                                      | Some v -> v
+                                                      | None -> r.Sdk.Version)
+            div [ ]
+                [ div [ Class "navbar" ]
+                      [ div [ Class "container row" ]
+                            [ span [ ] [ str "Versions of" ]
+                              a [ Href "#core"; Class "active" ] [ str ".NET Core" ]
+                              ] ]//a [ Href "#framework" ] [ str ".NET Framework" ] ] ]
+                  div [ Class "header" ]
+                      [ div [ Class "container row" ]
+                            [ div [ Class "cell column" ]
+                                  [ span [ Class "version" ] 
+                                         [ str latestRelease ]
+                                    span [ Class "label" ] 
+                                         [ str "Latest runtime" ] ]
+                              div [ Class "cell column" ]
+                                  [ ( match latestSdk with
+                                      | Loaded v -> span [ Class "version" ] [ str v ] 
+                                      | Unloaded | Loading ->  div [ Class "loading" ] [ ]
+                                      | Error ex -> span [ Class "error-symbol" ] [ str "×" ] )
+                                    span [ Class "label" ] 
+                                         [ str "Latest SDK" ] ] ] ] ]
 
     // App
     Program.mkProgram init update view
