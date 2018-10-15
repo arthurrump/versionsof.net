@@ -86,6 +86,8 @@ module App =
         let s = date.ToString("yyyy-MM-dd")
         time [ Props.DateTime s ] [ str s ]
 
+    let chevronRight = img [ Src "data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiA/PjwhRE9DVFlQRSBzdmcgIFBVQkxJQyAnLS8vVzNDLy9EVEQgU1ZHIDEuMS8vRU4nICAnaHR0cDovL3d3dy53My5vcmcvR3JhcGhpY3MvU1ZHLzEuMS9EVEQvc3ZnMTEuZHRkJz48c3ZnIGhlaWdodD0iNTEycHgiIGlkPSJMYXllcl8xIiBzdHlsZT0iZW5hYmxlLWJhY2tncm91bmQ6bmV3IDAgMCA1MTIgNTEyOyIgdmVyc2lvbj0iMS4xIiB2aWV3Qm94PSIwIDAgNTEyIDUxMiIgd2lkdGg9IjUxMnB4IiB4bWw6c3BhY2U9InByZXNlcnZlIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIj48cGF0aCBkPSJNMjk4LjMsMjU2TDI5OC4zLDI1NkwyOTguMywyNTZMMTMxLjEsODEuOWMtNC4yLTQuMy00LjEtMTEuNCwwLjItMTUuOGwyOS45LTMwLjZjNC4zLTQuNCwxMS4zLTQuNSwxNS41LTAuMmwyMDQuMiwyMTIuNyAgYzIuMiwyLjIsMy4yLDUuMiwzLDguMWMwLjEsMy0wLjksNS45LTMsOC4xTDE3Ni43LDQ3Ni44Yy00LjIsNC4zLTExLjIsNC4yLTE1LjUtMC4yTDEzMS4zLDQ0NmMtNC4zLTQuNC00LjQtMTEuNS0wLjItMTUuOCAgTDI5OC4zLDI1NnoiLz48L3N2Zz4=" ]
+
     let supportIndicator supportPhase =
         match supportPhase with
         | "lts" -> 
@@ -163,7 +165,8 @@ module App =
                             table [ ]       
                                   [ thead [ ]
                                           [ tr [ ]
-                                               [ th [ ] [ str "Channel" ]
+                                               [ th [ ] [ ]
+                                                 th [ ] [ str "Channel" ]
                                                  th [ ] [ str "Latest release" ]
                                                  th [ ] [ str "Support" ]
                                                  th [ ] [ str "End of Life date" ] ] ]
@@ -171,7 +174,8 @@ module App =
                                           [ for c in channels ->
                                                 let i = c.Index
                                                 tr [ ]
-                                                   [ td [ ] [ str i.ChannelVersion ]
+                                                   [ td [ Class "expand-button" ] [ chevronRight ]
+                                                     td [ ] [ str i.ChannelVersion ]
                                                      td [ ] [ str i.LatestRelease ]
                                                      td [ ] [ div [ Class "support-box" ] ( supportIndicator i.SupportPhase ) ]
                                                      td [ ] [ ( match i.EolDate with

@@ -252,3 +252,7 @@ nav a.active {
     border: 0.05rem solid #000;
     color: #000;
 }
+
+.expand-button > img {
+    height: 0.9rem;
+}
