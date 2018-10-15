@@ -58,6 +58,8 @@ module App =
 
     let init () = Loading, fetchIndexCmd
 
+    let yyyymmdd (date: DateTime) = date.ToString("yyyy-MM-dd")
+
     let update (msg:Msg) (model:Model) =
         match msg with
         | LoadIndex ->
@@ -110,30 +112,49 @@ module App =
                                                       | Some v -> v
                                                       | None -> r.Sdk.Version)
             div [ ]
-                [ div [ Class "navbar" ]
+                [ nav [ ]
                       [ div [ Class "container" ]
                             [ h1 [ Id "title" ] [ str "Versions of" ]
                               a [ Href "#core"; Class "active" ] [ str ".NET Core" ]
                               //a [ Href "#framework" ] [ str ".NET Framework" ]
                               ] ]
-                  div [ Class "header" ]
-                      [ div [ Class "container row" ]
-                            [ div [ Class "cell column" ]
-                                  [ span [ Class "version" ] 
-                                         [ str latestRelease ]
-                                    span [ Class "label" ] 
-                                         [ str "Latest runtime" ] ]
-                              div [ Class "cell column" ]
-                                  [ ( match latestSdk with
-                                      | Loaded v -> span [ Class "version" ] [ str v ] 
-                                      | Unloaded | Loading ->  div [ Class "loading" ] [ ]
-                                      | Error ex -> 
-                                          span [ Class "error-symbol"
-                                                 Title (sprintf "Click to try again. Error details: %s" ex.Message)
-                                                 OnClick (fun _ -> dispatch (LoadChannel latestReleaseChannel.Index.ReleasesJson)) ] 
-                                               [ str "×" ] )
-                                    span [ Class "label" ]
-                                         [ str "Latest SDK" ] ] ] ] ]
+                  header [ ]
+                         [ div [ Class "container row" ]
+                               [ div [ Class "cell column" ]
+                                     [ span [ Class "version" ] 
+                                            [ str latestRelease ]
+                                       span [ Class "label" ] 
+                                            [ str "Latest runtime" ] ]
+                                 div [ Class "cell column" ]
+                                     [ ( match latestSdk with
+                                         | Loaded v -> span [ Class "version" ] [ str v ] 
+                                         | Unloaded | Loading ->  div [ Class "loading" ] [ ]
+                                         | Error ex -> 
+                                             span [ Class "error-symbol"
+                                                    Title (sprintf "Click to try again. Error details: %s" ex.Message)
+                                                    OnClick (fun _ -> dispatch (LoadChannel latestReleaseChannel.Index.ReleasesJson)) ] 
+                                                  [ str "×" ] )
+                                       span [ Class "label" ]
+                                            [ str "Latest SDK" ] ] ] ]                              
+                  section [ Id "releases"
+                            Class "container" ]
+                          [ h2 [ ] [ str "Releases" ]
+                            table [ ]       
+                                  [ thead [ ]
+                                          [ th [ ] [ str "Channel" ]
+                                            th [ ] [ str "Latest release" ]
+                                            th [ ] [ str "Support" ]
+                                            th [ ] [ str "End of life date" ] ] 
+                                    tbody [ ]
+                                          [ for c in channels ->
+                                                let i = c.Index
+                                                tr [ ]
+                                                   [ td [ ] [ str i.ChannelVersion ]
+                                                     td [ ] [ str i.LatestRelease ]
+                                                     td [ ] [ str i.SupportPhase ]
+                                                     td [ ] [ str ( match i.EolDate with
+                                                                    | Some d -> yyyymmdd d
+                                                                    | None -> "-" ) ] ] ] ] ] ]
 
     // App
     Program.mkProgram init update view
