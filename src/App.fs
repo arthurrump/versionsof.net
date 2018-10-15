@@ -7,6 +7,7 @@ open Fable.Helpers.React.Props
 open Data
 open Fable.PowerPack
 open System
+open System.IO
 
 type Loadable<'t> =
     | Unloaded
@@ -101,7 +102,6 @@ module App =
         | Loaded channels ->
             let latestReleaseChannel = channels |> List.maxBy (fun c -> c.Index.LatestRelease)
             let latestRelease = latestReleaseChannel.Index.LatestRelease
-            let latestReleaseDate = latestReleaseChannel.Info |> Loadable.map (fun i -> i.LatestReleaseDate)
             let latestSdk = 
                 latestReleaseChannel.Info 
                 |> Loadable.map (fun i -> i.Releases 
@@ -111,10 +111,11 @@ module App =
                                                       | None -> r.Sdk.Version)
             div [ ]
                 [ div [ Class "navbar" ]
-                      [ div [ Class "container row" ]
-                            [ span [ ] [ str "Versions of" ]
+                      [ div [ Class "container" ]
+                            [ h1 [ Id "title" ] [ str "Versions of" ]
                               a [ Href "#core"; Class "active" ] [ str ".NET Core" ]
-                              ] ]//a [ Href "#framework" ] [ str ".NET Framework" ] ] ]
+                              //a [ Href "#framework" ] [ str ".NET Framework" ]
+                              ] ]
                   div [ Class "header" ]
                       [ div [ Class "container row" ]
                             [ div [ Class "cell column" ]
@@ -126,8 +127,12 @@ module App =
                                   [ ( match latestSdk with
                                       | Loaded v -> span [ Class "version" ] [ str v ] 
                                       | Unloaded | Loading ->  div [ Class "loading" ] [ ]
-                                      | Error ex -> span [ Class "error-symbol" ] [ str "×" ] )
-                                    span [ Class "label" ] 
+                                      | Error ex -> 
+                                          span [ Class "error-symbol"
+                                                 Title (sprintf "Click to try again. Error details: %s" ex.Message)
+                                                 OnClick (fun _ -> dispatch (LoadChannel latestReleaseChannel.Index.ReleasesJson)) ] 
+                                               [ str "×" ] )
+                                    span [ Class "label" ]
                                          [ str "Latest SDK" ] ] ] ] ]
 
     // App

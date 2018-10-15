@@ -123,6 +123,10 @@ button:hover {
     color: #fff;
 }
 
+.header {
+    margin-top: -0.9rem;
+}
+
 .header .cell {
     margin: 20px;
     display: grid;
@@ -136,12 +140,16 @@ button:hover {
     grid-row: 1;
 }
 
-.header .version {
+.header .version, .header .error-symbol {
     font-size: 6.0rem;
     margin: 20px 0;
     grid-row: 1;
     justify-self: center;
     align-self: center;
+}
+
+.header .error-symbol {
+    cursor: pointer;
 }
 
 .header .label {
@@ -150,14 +158,24 @@ button:hover {
     text-align: center;
 }
 
-.navbar > .row {
+.navbar > .container {
+    display: flex;
+    flex-flow: row nowrap;
     justify-content: flex-start;
 }
 
-.navbar a, .navbar span {
+.navbar > .container {
+    overflow-y: hidden;
+}
+
+.navbar > .container > * {
+    white-space: nowrap;
+}
+
+.navbar a, .navbar h1 {
     font-size: 1.4rem;
     font-weight: lighter;
-    margin: 1em 1em 0 0;
+    margin: 1em 1em 1rem 0;
 }
 
 .navbar a {
@@ -165,6 +183,11 @@ button:hover {
     text-decoration: none;
 }
 
+.navbar #title {
+    order: -2;
+}
+
 .navbar a.active {
     border-bottom: .08em solid #fff;
+    order: -1;
 }
