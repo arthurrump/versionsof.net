@@ -9,6 +9,7 @@ module.exports = {
     },
     devServer: {
         contentBase: "./public",
+        //host: "0.0.0.0", // Enable for network access
         port: 8080,
     },
     module: {
