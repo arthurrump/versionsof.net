@@ -144,12 +144,22 @@ module App =
           span [ Class "error-details" ]
                [ str (sprintf "Details: %s" ex.Message) ] ]
 
+    let headRow =
+        tr [ ]
+           [ th [ Class "hide-border" ] [ ]
+             th [ ] [ ]
+             th [ ] [ str "Channel" ]
+             th [ ] [ str "Latest release" ]
+             th [ ] [ str "Support" ]
+             th [ ] [ str "End of Life date" ] ]
+
     let channelRow dispatch c =
         let i = c.Index
         tr [ OnClick (fun _ -> dispatch (if c.Expanded
                                          then CollapseChannel i.ReleasesJson
                                          else ExpandChannel i.ReleasesJson)) ]
-           [ td [ Class "expand-button" ] 
+           [ td [ Class "expand-button"
+                  ColSpan 2.0 ] 
                 [ (if c.Expanded then chevronDown else chevronRight) ]
              td [ ] [ str i.ChannelVersion ]
              td [ ] [ str i.LatestRelease ]
@@ -158,36 +168,37 @@ module App =
                         | Some d -> dateToHtmlTime d
                         | None -> str "-" ) ] ]
 
-    let expandedChannel dispatch c =
+    let expandedChannel dispatch c last =
         match c.Info with
         | Unloaded | Loading -> 
-            div [ Class "expanded-loading" ]
-                [ div [ Class "loading" ] [ ] ]
+            [ tr [ ] 
+                 [ td [ ColSpan 6.0 ] 
+                      [ div [ Class "expanded-loading" ]
+                            [ div [ Class "loading" ] [ ] ] ] ] ]
         | Error ex -> 
-            div [ Class "channel-error column" ] 
-                ( errorView ex (fun _ -> dispatch (LoadChannel c.Index.ReleasesJson)) )
+            [ tr [ ] 
+                 [ td [ ColSpan 6.0 ] 
+                      [ div [ Class "channel-error column" ] 
+                            ( errorView ex (fun _ -> dispatch (LoadChannel c.Index.ReleasesJson)) ) ] ] ]
         | Loaded info -> 
-            table [ ]
-                  [ thead [ ]
-                          [ tr [ ]
-                               [ th [ ] [ str "Release date" ]
-                                 th [ ] [ str "Release Version" ]
-                                 th [ ] [ str "Runtime" ]
-                                 th [ ] [ str "Sdk" ] ] ]
-                    tbody [ ]
-                          [ for r in info.Releases ->
-                                tr [ ]
-                                   [ td [ ] [ dateToHtmlTime r.ReleaseDate ]
-                                     td [ ] [ str (Option.defaultValue "-" r.ReleaseVersion) ]
-                                     td [ ] [ str (match r.Runtime with
-                                                   | Some r -> Option.defaultValue r.Version r.VersionDisplay
-                                                   | None -> "-") ]
-                                     td [ ] [ str (Option.defaultValue r.Sdk.Version r.Sdk.VersionDisplay) ] ] ] ]
-
-    let expandedChannelRow dispatch c =
-        tr [ Class "expanded-channel" ] 
-           [ td [ ColSpan 5.0 ] 
-                [ expandedChannel dispatch c ] ]
+            [ tr [ ]
+                 [ th [ ] [ ]
+                   th [ ] [ ]
+                   th [ ] [ str "Release date" ]
+                   th [ ] [ str "Release Version" ]
+                   th [ ] [ str "Runtime" ]
+                   th [ ] [ str "Sdk" ] ] ] @
+            [ for r in info.Releases ->
+                  tr [ ]
+                     [ td [ Class "hide-border" ] [ ]
+                       td [ Class "expand-button" ] [ (*chevronRight*) ]
+                       td [ ] [ dateToHtmlTime r.ReleaseDate ]
+                       td [ ] [ str (Option.defaultValue "-" r.ReleaseVersion) ]
+                       td [ ] [ str (match r.Runtime with
+                                     | Some r -> Option.defaultValue r.Version r.VersionDisplay
+                                     | None -> "-") ]
+                       td [ ] [ str (Option.defaultValue r.Sdk.Version r.Sdk.VersionDisplay) ] ] ] @
+            if last then [ ] else [ headRow ]
 
     let view (model:Model) dispatch =
         match model with
@@ -199,12 +210,12 @@ module App =
                 [ div [ Class "container column" ]
                       ( errorView ex (fun _ -> dispatch LoadIndex) ) ]
         | Loaded channels ->
-            let latestReleaseChannel = channels |> List.maxBy (fun c -> c.Index.LatestRelease)
+            let latestReleaseChannel = channels |> List.maxBy (fun c -> c.Index.ChannelVersion)
             let latestRelease = latestReleaseChannel.Index.LatestRelease
             let latestSdk = 
                 latestReleaseChannel.Info 
                 |> Loadable.map (fun i -> i.Releases 
-                                          |> List.maxBy (fun r -> r.Sdk.Version)
+                                          |> List.maxBy (fun r -> r.ReleaseDate)
                                           |> fun r -> match r.Sdk.VersionDisplay with
                                                       | Some v -> v
                                                       | None -> r.Sdk.Version)
@@ -213,8 +224,9 @@ module App =
                       [ div [ Class "container" ]
                             [ h1 [ Id "title" ] [ str "Versions of" ]
                               a [ Href "#core"; Class "active" ] [ str ".NET Core" ]
+                              a [ (*Href "#standard"*) Disabled true; Title "Coming soon™"; Style [ Cursor "default"; CSSProp.Color "rgba(255, 255, 255, 0.6)" ] ] [ str ".NET Standard" ]
                               a [ (*Href "#framework"*) Disabled true; Title "Coming soon™"; Style [ Cursor "default"; CSSProp.Color "rgba(255, 255, 255, 0.6)" ] ] [ str ".NET Framework" ]
-                              ] ]
+                            ] ]
                   header [ ]
                          [ div [ Class "container row" ]
                                [ div [ Class "cell column" ]
@@ -238,16 +250,11 @@ module App =
                           [ h2 [ ] [ str "Releases" ]
                             table [ ]       
                                   [ thead [ ]
-                                          [ tr [ ]
-                                               [ th [ ] [ ]
-                                                 th [ ] [ str "Channel" ]
-                                                 th [ ] [ str "Latest release" ]
-                                                 th [ ] [ str "Support" ]
-                                                 th [ ] [ str "End of Life date" ] ] ]
+                                          [ headRow ]
                                     tbody [ ]
                                           ( [ for c in channels ->
                                                   [ yield channelRow dispatch c
-                                                    if c.Expanded then yield expandedChannelRow dispatch c ] ] 
+                                                    if c.Expanded then yield! expandedChannel dispatch c (c = List.last channels) ] ] 
                                             |> List.concat ) ] ] ]
 
     // App

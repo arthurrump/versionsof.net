@@ -220,6 +220,7 @@ nav a.active {
     border-spacing: 0px;
     table-layout: auto;
     width: 100%;
+    margin-bottom: 4rem;
 }
 
 #releases td, #releases th {
@@ -235,8 +236,14 @@ nav a.active {
 #releases th {
     text-align: left;
     vertical-align: bottom;
-    border: solid #e3e3e3;
+}
+
+#releases thead th {
     border-width: 0 0 1px;
+}
+
+#releases .hide-border {
+    border-width: 0;
 }
 
 .support-box {
