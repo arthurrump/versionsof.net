@@ -7,13 +7,17 @@ open Fable.Helpers.React.Props
 open Data
 open Fable.PowerPack
 open System
-open System.IO
 
 type Loadable<'t> =
     | Unloaded
     | Loading
     | Error of exn
     | Loaded of 't
+
+    member x.isLoaded =
+        match x with
+        | Loaded _ -> true
+        | _ -> false
 
     static member map f (x: Loadable<'t>) =
         match x with
@@ -27,7 +31,8 @@ type LazyChannelInfo =
 
 type ChannelModel =
     { Index: IndexEntry
-      Info: Loadable<LazyChannelInfo> }
+      Info: Loadable<LazyChannelInfo>
+      Expanded: bool }
 
 type Model = Loadable<ChannelModel list>
 
@@ -41,6 +46,8 @@ type Msg =
     | FetchedIndex of IndexEntry list
     | FetchedChannel of Url * Channel
     | FetchError of File * exn
+    | ExpandChannel of Url
+    | CollapseChannel of Url
 
 module App =
     let fetchError file ex = FetchError (file, ex)
@@ -56,6 +63,11 @@ module App =
                                  then { channel with Info = info }
                                  else channel)
 
+    let setExpandedFor releasesUrl expanded =
+        List.map (fun channel -> if channel.Index.ReleasesJson = releasesUrl
+                                 then { channel with Expanded = expanded }
+                                 else channel) 
+
     let init () = Loading, fetchIndexCmd
 
     let update (msg:Msg) (model:Model) =
@@ -69,7 +81,7 @@ module App =
                 indices 
                 |> List.maxBy (fun i -> i.ChannelVersion)
                 |> fun i -> i.ReleasesJson
-            let channels = indices |> List.map (fun i -> { Index = i; Info = Unloaded })
+            let channels = indices |> List.map (fun i -> { Index = i; Info = Unloaded; Expanded = false })
             Loaded channels, Cmd.ofMsg (LoadChannel latestChannelUrl)
         | FetchedChannel (url, channel) -> 
             let info = { LatestReleaseDate = channel.LatestReleaseDate
@@ -81,12 +93,26 @@ module App =
             | Index -> Error ex, Cmd.none
             | Channel url ->
                 model |> Loadable.map (setChannelInfoFor url (Error ex)), Cmd.none
+        | ExpandChannel url ->
+            let loaded = 
+                match model with
+                | Loaded cs ->
+                    match cs |> List.tryFind (fun c -> c.Index.ReleasesJson = url) with
+                    | Some c -> c.Info.isLoaded
+                    | None -> false
+                | _ -> false
+
+            model |> Loadable.map (setExpandedFor url true), 
+            if loaded then Cmd.none else Cmd.ofMsg (LoadChannel url)
+        | CollapseChannel url ->
+            model |> Loadable.map (setExpandedFor url false), Cmd.none
 
     let dateToHtmlTime (date: DateTime) = 
         let s = date.ToString("yyyy-MM-dd")
         time [ Props.DateTime s ] [ str s ]
 
     let chevronRight = img [ Src "data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiA/PjwhRE9DVFlQRSBzdmcgIFBVQkxJQyAnLS8vVzNDLy9EVEQgU1ZHIDEuMS8vRU4nICAnaHR0cDovL3d3dy53My5vcmcvR3JhcGhpY3MvU1ZHLzEuMS9EVEQvc3ZnMTEuZHRkJz48c3ZnIGhlaWdodD0iNTEycHgiIGlkPSJMYXllcl8xIiBzdHlsZT0iZW5hYmxlLWJhY2tncm91bmQ6bmV3IDAgMCA1MTIgNTEyOyIgdmVyc2lvbj0iMS4xIiB2aWV3Qm94PSIwIDAgNTEyIDUxMiIgd2lkdGg9IjUxMnB4IiB4bWw6c3BhY2U9InByZXNlcnZlIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIj48cGF0aCBkPSJNMjk4LjMsMjU2TDI5OC4zLDI1NkwyOTguMywyNTZMMTMxLjEsODEuOWMtNC4yLTQuMy00LjEtMTEuNCwwLjItMTUuOGwyOS45LTMwLjZjNC4zLTQuNCwxMS4zLTQuNSwxNS41LTAuMmwyMDQuMiwyMTIuNyAgYzIuMiwyLjIsMy4yLDUuMiwzLDguMWMwLjEsMy0wLjksNS45LTMsOC4xTDE3Ni43LDQ3Ni44Yy00LjIsNC4zLTExLjIsNC4yLTE1LjUtMC4yTDEzMS4zLDQ0NmMtNC4zLTQuNC00LjQtMTEuNS0wLjItMTUuOCAgTDI5OC4zLDI1NnoiLz48L3N2Zz4=" ]
+    let chevronDown = img [ Src "data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiA/PjwhRE9DVFlQRSBzdmcgIFBVQkxJQyAnLS8vVzNDLy9EVEQgU1ZHIDEuMS8vRU4nICAnaHR0cDovL3d3dy53My5vcmcvR3JhcGhpY3MvU1ZHLzEuMS9EVEQvc3ZnMTEuZHRkJz48c3ZnIGhlaWdodD0iNTEycHgiIGlkPSJMYXllcl8xIiBzdHlsZT0iZW5hYmxlLWJhY2tncm91bmQ6bmV3IDAgMCA1MTIgNTEyOyIgdmVyc2lvbj0iMS4xIiB2aWV3Qm94PSIwIDAgNTEyIDUxMiIgd2lkdGg9IjUxMnB4IiB4bWw6c3BhY2U9InByZXNlcnZlIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIj48cGF0aCBkPSJNMjU2LDI5OC4zTDI1NiwyOTguM0wyNTYsMjk4LjNsMTc0LjItMTY3LjJjNC4zLTQuMiwxMS40LTQuMSwxNS44LDAuMmwzMC42LDI5LjljNC40LDQuMyw0LjUsMTEuMywwLjIsMTUuNUwyNjQuMSwzODAuOSAgYy0yLjIsMi4yLTUuMiwzLjItOC4xLDNjLTMsMC4xLTUuOS0wLjktOC4xLTNMMzUuMiwxNzYuN2MtNC4zLTQuMi00LjItMTEuMiwwLjItMTUuNUw2NiwxMzEuM2M0LjQtNC4zLDExLjUtNC40LDE1LjgtMC4yTDI1NiwyOTguMyAgeiIvPjwvc3ZnPg==" ]
 
     let supportIndicator supportPhase =
         match supportPhase with
@@ -174,7 +200,11 @@ module App =
                                           [ for c in channels ->
                                                 let i = c.Index
                                                 tr [ ]
-                                                   [ td [ Class "expand-button" ] [ chevronRight ]
+                                                   [ td [ Class "expand-button"
+                                                          OnClick (fun _ -> dispatch (if c.Expanded
+                                                                                      then CollapseChannel i.ReleasesJson
+                                                                                      else ExpandChannel i.ReleasesJson)) ] 
+                                                        [ (if c.Expanded then chevronDown else chevronRight) ]
                                                      td [ ] [ str i.ChannelVersion ]
                                                      td [ ] [ str i.LatestRelease ]
                                                      td [ ] [ div [ Class "support-box" ] ( supportIndicator i.SupportPhase ) ]

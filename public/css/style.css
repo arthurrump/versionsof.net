@@ -255,4 +255,5 @@ nav a.active {
 
 .expand-button > img {
     height: 0.9rem;
+    cursor: pointer;
 }
