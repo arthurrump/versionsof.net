@@ -92,16 +92,19 @@ button:hover {
 }
 
 .error-symbol {
-    font-size: 15.0rem;
     line-height: 1;
 }
 
-.error-title {
+.main-error .error-symbol {
+    font-size: 15.0rem;
+}
+
+.main-error .error-title {
     font-size: 3.0rem;
 }
 
 @media (min-width: 550px) {
-    .error-title {
+    .main-error .error-title {
         font-size: 5.0rem;
     }
 }
@@ -116,6 +119,25 @@ button:hover {
 
 .error-details {
     font-size: 0.8rem;
+}
+
+.channel-error .error-symbol {
+    margin-top: -2.5rem;
+    font-size: 9.0rem;
+}
+
+.channel-error .error-title {
+    font-size: 1.8rem;
+}
+
+.channel-error .error-details {
+    margin-bottom: 1rem;
+}
+
+.channel-error .error-retry-button {
+    height: 32px;
+    line-height: 32px;
+    font-size: 0.9rem;
 }
   
 header, nav {
@@ -200,13 +222,6 @@ nav a.active {
     width: 100%;
 }
 
-#releases th {
-    text-align: left;
-    vertical-align: bottom;
-    border: solid #e3e3e3;
-    border-width: 0 0 1px;
-}
-
 #releases td, #releases th {
     display: table-cell;
     padding: 12px 16px;
@@ -215,6 +230,13 @@ nav a.active {
     border: solid #e3e3e3;
     border-width: 1px 0 0;
     white-space: nowrap;
+}
+
+#releases th {
+    text-align: left;
+    vertical-align: bottom;
+    border: solid #e3e3e3;
+    border-width: 0 0 1px;
 }
 
 .support-box {
@@ -256,4 +278,17 @@ nav a.active {
 .expand-button > img {
     height: 0.9rem;
     cursor: pointer;
+}
+
+.expanded-loading {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+
+.expanded-loading .loading {
+    width: 4.0rem;
+    height: 4.0rem;
+    margin: 2.0rem;
+    border-color: #000;
 }

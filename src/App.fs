@@ -24,14 +24,14 @@ type Loadable<'t> =
         | Unloaded -> Unloaded | Loading -> Loading | Error e -> Error e
         | Loaded t -> Loaded (f t)
 
-type LazyChannelInfo =
+type ChannelInfo =
     { LatestReleaseDate: DateTime
       LifecyclePolicy: Url
       Releases: Release list }
 
 type ChannelModel =
     { Index: IndexEntry
-      Info: Loadable<LazyChannelInfo>
+      Info: Loadable<ChannelInfo>
       Expanded: bool }
 
 type Model = Loadable<ChannelModel list>
@@ -129,9 +129,65 @@ module App =
                      Title "Maintenance" ] [ ]
               span [ ] [ str "Maintenance" ] ]
         | t -> 
-            [ div [ Class "support-indicator unknown" 
-                    Title t ] [ str "?" ]
+            [ span [ Class "support-indicator unknown" 
+                     Title t ] [ str "?" ]
               span [ ] [ str t ] ]
+
+    let errorView (ex: exn) retryFun =
+        [ span [ Class "error-symbol" ] 
+               [ str "×" ]
+          span [ Class "error-title" ] 
+               [ str "An error occurred." ]
+          button [ Class "error-retry-button"
+                   OnClick retryFun ] 
+                 [ str "Try again" ]
+          span [ Class "error-details" ]
+               [ str (sprintf "Details: %s" ex.Message) ] ]
+
+    let channelRow dispatch c =
+        let i = c.Index
+        tr [ OnClick (fun _ -> dispatch (if c.Expanded
+                                         then CollapseChannel i.ReleasesJson
+                                         else ExpandChannel i.ReleasesJson)) ]
+           [ td [ Class "expand-button" ] 
+                [ (if c.Expanded then chevronDown else chevronRight) ]
+             td [ ] [ str i.ChannelVersion ]
+             td [ ] [ str i.LatestRelease ]
+             td [ ] [ div [ Class "support-box" ] ( supportIndicator i.SupportPhase ) ]
+             td [ ] [ ( match i.EolDate with
+                        | Some d -> dateToHtmlTime d
+                        | None -> str "-" ) ] ]
+
+    let expandedChannel dispatch c =
+        match c.Info with
+        | Unloaded | Loading -> 
+            div [ Class "expanded-loading" ]
+                [ div [ Class "loading" ] [ ] ]
+        | Error ex -> 
+            div [ Class "channel-error column" ] 
+                ( errorView ex (fun _ -> dispatch (LoadChannel c.Index.ReleasesJson)) )
+        | Loaded info -> 
+            table [ ]
+                  [ thead [ ]
+                          [ tr [ ]
+                               [ th [ ] [ str "Release date" ]
+                                 th [ ] [ str "Release Version" ]
+                                 th [ ] [ str "Runtime" ]
+                                 th [ ] [ str "Sdk" ] ] ]
+                    tbody [ ]
+                          [ for r in info.Releases ->
+                                tr [ ]
+                                   [ td [ ] [ dateToHtmlTime r.ReleaseDate ]
+                                     td [ ] [ str (Option.defaultValue "-" r.ReleaseVersion) ]
+                                     td [ ] [ str (match r.Runtime with
+                                                   | Some r -> Option.defaultValue r.Version r.VersionDisplay
+                                                   | None -> "-") ]
+                                     td [ ] [ str (Option.defaultValue r.Sdk.Version r.Sdk.VersionDisplay) ] ] ] ]
+
+    let expandedChannelRow dispatch c =
+        tr [ Class "expanded-channel" ] 
+           [ td [ ColSpan 5.0 ] 
+                [ expandedChannel dispatch c ] ]
 
     let view (model:Model) dispatch =
         match model with
@@ -141,15 +197,7 @@ module App =
         | Error ex ->
             div [ Class "main-error" ]
                 [ div [ Class "container column" ]
-                      [ span [ Class "error-symbol" ] 
-                             [ str "×" ]
-                        span [ Class "error-title" ] 
-                             [ str "An error occurred." ]
-                        button [ Class "error-retry-button"
-                                 OnClick (fun _ -> dispatch LoadIndex) ] 
-                               [ str "Try again" ]
-                        span [ Class "error-details" ]
-                             [ str (sprintf "Details: %s" ex.Message) ] ] ]
+                      ( errorView ex (fun _ -> dispatch LoadIndex) ) ]
         | Loaded channels ->
             let latestReleaseChannel = channels |> List.maxBy (fun c -> c.Index.LatestRelease)
             let latestRelease = latestReleaseChannel.Index.LatestRelease
@@ -165,7 +213,7 @@ module App =
                       [ div [ Class "container" ]
                             [ h1 [ Id "title" ] [ str "Versions of" ]
                               a [ Href "#core"; Class "active" ] [ str ".NET Core" ]
-                              //a [ Href "#framework" ] [ str ".NET Framework" ]
+                              a [ (*Href "#framework"*) Disabled true; Title "Coming soon™"; Style [ Cursor "default"; CSSProp.Color "rgba(255, 255, 255, 0.6)" ] ] [ str ".NET Framework" ]
                               ] ]
                   header [ ]
                          [ div [ Class "container row" ]
@@ -197,20 +245,10 @@ module App =
                                                  th [ ] [ str "Support" ]
                                                  th [ ] [ str "End of Life date" ] ] ]
                                     tbody [ ]
-                                          [ for c in channels ->
-                                                let i = c.Index
-                                                tr [ ]
-                                                   [ td [ Class "expand-button"
-                                                          OnClick (fun _ -> dispatch (if c.Expanded
-                                                                                      then CollapseChannel i.ReleasesJson
-                                                                                      else ExpandChannel i.ReleasesJson)) ] 
-                                                        [ (if c.Expanded then chevronDown else chevronRight) ]
-                                                     td [ ] [ str i.ChannelVersion ]
-                                                     td [ ] [ str i.LatestRelease ]
-                                                     td [ ] [ div [ Class "support-box" ] ( supportIndicator i.SupportPhase ) ]
-                                                     td [ ] [ ( match i.EolDate with
-                                                                | Some d -> dateToHtmlTime d
-                                                                | None -> str "-" ) ] ] ] ] ] ]
+                                          ( [ for c in channels ->
+                                                  [ yield channelRow dispatch c
+                                                    if c.Expanded then yield expandedChannelRow dispatch c ] ] 
+                                            |> List.concat ) ] ] ]
 
     // App
     Program.mkProgram init update view
