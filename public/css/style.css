@@ -265,15 +265,19 @@ nav a.active {
     cursor: default;
 }
 
-.green {
+.preview {
+    border: 0.05rem solid #000;
+}
+
+.lts {
     background: #28a745;
 }
 
-.yellow {
+.maintenance {
     background: #ffc107;
 }
 
-.red {
+.eol {
     background: #dc3545;
 }
 

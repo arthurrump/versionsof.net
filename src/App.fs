@@ -70,6 +70,14 @@ module App =
 
     let init () = Loading, fetchIndexCmd
 
+    let latestNonPreviewIndexEntry : (IndexEntry list -> IndexEntry) = 
+        List.filter (fun i -> i.SupportPhase <> "preview")
+        >> List.maxBy (fun i -> i.ChannelVersion)
+
+    let latestNonPreviewChannel = 
+        List.filter (fun i -> i.Index.SupportPhase <> "preview")
+        >> List.maxBy (fun i -> i.Index.ChannelVersion)
+
     let update (msg:Msg) (model:Model) =
         match msg with
         | LoadIndex ->
@@ -79,7 +87,7 @@ module App =
         | FetchedIndex indices -> 
             let latestChannelUrl = 
                 indices 
-                |> List.maxBy (fun i -> i.ChannelVersion)
+                |> latestNonPreviewIndexEntry
                 |> fun i -> i.ReleasesJson
             let channels = indices |> List.map (fun i -> { Index = i; Info = Unloaded; Expanded = false })
             Loaded channels, Cmd.ofMsg (LoadChannel latestChannelUrl)
@@ -116,16 +124,20 @@ module App =
 
     let supportIndicator supportPhase =
         match supportPhase with
+        | "preview" ->
+            [ span [ Class "support-indicator preview"
+                     Title "Preview" ] [ ]
+              span [ ] [ str "Preview" ] ]
         | "lts" -> 
-            [ span [ Class "support-indicator green"
+            [ span [ Class "support-indicator lts"
                      Title "Long Term Support" ] [ ]
               span [ ] [ str "Long Term Support" ] ]
         | "eol" -> 
-            [ span [ Class "support-indicator red"
+            [ span [ Class "support-indicator eol"
                      Title "End of Life" ] [ ]
               span [ ] [ str "End of Life" ] ]
         | "maintenance" -> 
-            [ span [ Class "support-indicator yellow"
+            [ span [ Class "support-indicator maintenance"
                      Title "Maintenance" ] [ ]
               span [ ] [ str "Maintenance" ] ]
         | t -> 
@@ -210,7 +222,7 @@ module App =
                 [ div [ Class "container column" ]
                       ( errorView ex (fun _ -> dispatch LoadIndex) ) ]
         | Loaded channels ->
-            let latestReleaseChannel = channels |> List.maxBy (fun c -> c.Index.ChannelVersion)
+            let latestReleaseChannel = channels |> latestNonPreviewChannel
             let latestRelease = latestReleaseChannel.Index.LatestRelease
             let latestSdk = 
                 latestReleaseChannel.Info 
