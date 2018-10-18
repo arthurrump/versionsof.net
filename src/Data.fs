@@ -15,6 +15,7 @@ module Data =
     type IndexEntry =
         { ChannelVersion: Version
           LatestRelease: Version
+          LatestReleaseDate: DateTime
           Product: string
           SupportPhase: string
           EolDate: DateTime option
@@ -25,6 +26,7 @@ module Data =
                 (fun get -> 
                     { ChannelVersion = get.Required.Field "channel-version" Decode.string
                       LatestRelease = get.Required.Field "latest-release" Decode.string
+                      LatestReleaseDate = get.Required.Field "latest-release-date" Decode.datetime
                       Product = get.Required.Field "product" Decode.string
                       SupportPhase = get.Required.Field "support-phase" Decode.string
                       EolDate = getOptionalDate get "eol-date"

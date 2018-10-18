@@ -25,8 +25,7 @@ type Loadable<'t> =
         | Loaded t -> Loaded (f t)
 
 type ChannelInfo =
-    { LatestReleaseDate: DateTime
-      LifecyclePolicy: Url
+    { LifecyclePolicy: Url
       Releases: Release list }
 
 type ChannelModel =
@@ -92,8 +91,7 @@ module App =
             let channels = indices |> List.map (fun i -> { Index = i; Info = Unloaded; Expanded = false })
             Loaded channels, Cmd.ofMsg (LoadChannel latestChannelUrl)
         | FetchedChannel (url, channel) -> 
-            let info = { LatestReleaseDate = channel.LatestReleaseDate
-                         LifecyclePolicy = channel.LifecyclePolicy
+            let info = { LifecyclePolicy = channel.LifecyclePolicy
                          Releases = channel.Releases }
             model |> Loadable.map (setChannelInfoFor url (Loaded info)), Cmd.none
         | FetchError (file, ex) -> 
