@@ -246,12 +246,12 @@ nav a.active {
     border-width: 0;
 }
 
-.support-box {
+.status-box {
     display: flex;
     align-content: center;
 }
 
-.support-indicator {
+.status-indicator {
     align-self: center;
     height: 1rem;
     width: 1rem;
@@ -284,6 +284,11 @@ nav a.active {
 .unknown {
     border: 0.05rem solid #000;
     color: #000;
+}
+
+.security {
+    border: 0.05rem solid #dc3545;
+    color: #dc3545;
 }
 
 .expand-button > img {

@@ -123,25 +123,33 @@ module App =
     let supportIndicator supportPhase =
         match supportPhase with
         | "preview" ->
-            [ span [ Class "support-indicator preview"
+            [ span [ Class "status-indicator preview"
                      Title "Preview" ] [ ]
               span [ ] [ str "Preview" ] ]
         | "lts" -> 
-            [ span [ Class "support-indicator lts"
+            [ span [ Class "status-indicator lts"
                      Title "Long Term Support" ] [ ]
               span [ ] [ str "Long Term Support" ] ]
         | "eol" -> 
-            [ span [ Class "support-indicator eol"
+            [ span [ Class "status-indicator eol"
                      Title "End of Life" ] [ ]
               span [ ] [ str "End of Life" ] ]
         | "maintenance" -> 
-            [ span [ Class "support-indicator maintenance"
+            [ span [ Class "status-indicator maintenance"
                      Title "Maintenance" ] [ ]
               span [ ] [ str "Maintenance" ] ]
         | t -> 
-            [ span [ Class "support-indicator unknown" 
+            [ span [ Class "status-indicator unknown" 
                      Title t ] [ str "?" ]
               span [ ] [ str t ] ]
+
+    let securityIndicator release = 
+        if release.Security then
+            [ div [ Class "status-box" ]
+                  [ span [ Class "status-indicator security"
+                           Title "Security" ] [ str "!" ]
+                    span [ ] [ str "Security" ] ] ]
+        else [ ]
 
     let errorView (ex: exn) retryFun =
         [ span [ Class "error-symbol" ] 
@@ -160,6 +168,7 @@ module App =
              th [ ] [ ]
              th [ ] [ str "Channel" ]
              th [ ] [ str "Latest release" ]
+             th [ ] [ str "Latest release date" ]
              th [ ] [ str "Support" ]
              th [ ] [ str "End of Life date" ] ]
 
@@ -173,7 +182,8 @@ module App =
                 [ (if c.Expanded then chevronDown else chevronRight) ]
              td [ ] [ str i.ChannelVersion ]
              td [ ] [ str i.LatestRelease ]
-             td [ ] [ div [ Class "support-box" ] ( supportIndicator i.SupportPhase ) ]
+             td [ ] [ dateToHtmlTime i.LatestReleaseDate ]
+             td [ ] [ div [ Class "status-box" ] ( supportIndicator i.SupportPhase ) ]
              td [ ] [ ( match i.EolDate with
                         | Some d -> dateToHtmlTime d
                         | None -> str "-" ) ] ]
@@ -182,32 +192,34 @@ module App =
         match c.Info with
         | Unloaded | Loading -> 
             [ tr [ ] 
-                 [ td [ ColSpan 6.0 ] 
+                 [ td [ ColSpan 7.0 ] 
                       [ div [ Class "expanded-loading" ]
                             [ div [ Class "loading" ] [ ] ] ] ] ]
         | Error ex -> 
             [ tr [ ] 
-                 [ td [ ColSpan 6.0 ] 
+                 [ td [ ColSpan 7.0 ] 
                       [ div [ Class "channel-error column" ] 
                             ( errorView ex (fun _ -> dispatch (LoadChannel c.Index.ReleasesJson)) ) ] ] ]
         | Loaded info -> 
             [ tr [ ]
                  [ th [ ] [ ]
                    th [ ] [ ]
+                   th [ ] [ str "Version" ]
                    th [ ] [ str "Release date" ]
-                   th [ ] [ str "Release Version" ]
                    th [ ] [ str "Runtime" ]
-                   th [ ] [ str "Sdk" ] ] ] @
+                   th [ ] [ str "Sdk" ]
+                   th [ ] [ ] ] ] @
             [ for r in info.Releases ->
                   tr [ ]
                      [ td [ Class "hide-border" ] [ ]
                        td [ Class "expand-button" ] [ (*chevronRight*) ]
-                       td [ ] [ dateToHtmlTime r.ReleaseDate ]
                        td [ ] [ str (Option.defaultValue "-" r.ReleaseVersion) ]
+                       td [ ] [ dateToHtmlTime r.ReleaseDate ]
                        td [ ] [ str (match r.Runtime with
                                      | Some r -> Option.defaultValue r.Version r.VersionDisplay
                                      | None -> "-") ]
-                       td [ ] [ str (Option.defaultValue r.Sdk.Version r.Sdk.VersionDisplay) ] ] ] @
+                       td [ ] [ str (Option.defaultValue r.Sdk.Version r.Sdk.VersionDisplay) ]
+                       td [ ] ( securityIndicator r ) ] ] @
             if last then [ ] else [ headRow ]
 
     let view (model:Model) dispatch =
