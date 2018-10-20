@@ -64,6 +64,7 @@ module Data =
           VsVersion: Version option
           CsharpLanguage: Version option
           FsharpLanguage: Version option
+          VbLanguage: Version option
           Files: File list }
 
         static member Decoder : Decode.Decoder<Sdk> =
@@ -76,6 +77,7 @@ module Data =
                       VsVersion = get.Optional.Field "vs-version" Decode.string
                       CsharpLanguage = get.Optional.Field "csharp-language" Decode.string
                       FsharpLanguage = get.Optional.Field "fsharp-language" Decode.string
+                      VbLanguage = get.Optional.Field "vb-language" Decode.string
                       Files = get.Required.Field "files" (Decode.list File.Decoder) })
 
     type AspnetcoreRuntime =
