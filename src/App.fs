@@ -14,19 +14,25 @@ type Loadable<'t> =
     | Error of exn
     | Loaded of 't
 
-    member x.isLoaded =
+[<RequireQualifiedAccess>]
+module Loadable =
+    let isLoaded x =
         match x with
         | Loaded _ -> true
         | _ -> false
 
-    static member map f (x: Loadable<'t>) =
+    let map f x =
         match x with
         | Unloaded -> Unloaded | Loading -> Loading | Error e -> Error e
         | Loaded t -> Loaded (f t)
 
+type ReleaseModel =
+    { Release: Release
+      Expanded: bool }
+
 type ChannelInfo =
     { LifecyclePolicy: Url
-      Releases: Release list }
+      Releases: ReleaseModel list }
 
 type ChannelModel =
     { Index: IndexEntry
@@ -47,6 +53,8 @@ type Msg =
     | FetchError of File * exn
     | ExpandChannel of Url
     | CollapseChannel of Url
+    | ExpandRelease of Url * ReleaseModel
+    | CollapseRelease of Url * ReleaseModel
 
 module App =
     let fetchError file ex = FetchError (file, ex)
@@ -66,6 +74,26 @@ module App =
         List.map (fun channel -> if channel.Index.ReleasesJson = releasesUrl
                                  then { channel with Expanded = expanded }
                                  else channel) 
+
+    let setExpandedForReleaseInInfo releaseModel expanded (info: ChannelInfo) =
+        { info with 
+            Releases =
+                info.Releases
+                |> List.map (fun rm -> if rm = releaseModel
+                                       then { rm with Expanded = expanded }
+                                       else rm) }
+
+    let setExpandedForRelease releasesUrl releaseModel expanded =
+        List.map (fun channel -> if channel.Index.ReleasesJson = releasesUrl
+                                 then { channel with Info = channel.Info 
+                                                            |> Loadable.map (setExpandedForReleaseInInfo releaseModel expanded) }
+                                 else channel)
+
+    let releaseModelToRelease rm =
+        rm.Release
+
+    let releaseToReleaseModel expanded r =
+        { Release = r; Expanded = expanded }
 
     let init () = Loading, fetchIndexCmd
 
@@ -92,7 +120,7 @@ module App =
             Loaded channels, Cmd.ofMsg (LoadChannel latestChannelUrl)
         | FetchedChannel (url, channel) -> 
             let info = { LifecyclePolicy = channel.LifecyclePolicy
-                         Releases = channel.Releases }
+                         Releases = channel.Releases |> List.map (releaseToReleaseModel false) }
             model |> Loadable.map (setChannelInfoFor url (Loaded info)), Cmd.none
         | FetchError (file, ex) -> 
             match file with
@@ -104,7 +132,7 @@ module App =
                 match model with
                 | Loaded cs ->
                     match cs |> List.tryFind (fun c -> c.Index.ReleasesJson = url) with
-                    | Some c -> c.Info.isLoaded
+                    | Some c -> Loadable.isLoaded c.Info
                     | None -> false
                 | _ -> false
 
@@ -112,6 +140,10 @@ module App =
             if loaded then Cmd.none else Cmd.ofMsg (LoadChannel url)
         | CollapseChannel url ->
             model |> Loadable.map (setExpandedFor url false), Cmd.none
+        | ExpandRelease (channelUrl, releaseModel) ->
+            model |> Loadable.map (setExpandedForRelease channelUrl releaseModel true), Cmd.none
+        | CollapseRelease (channelUrl, releaseModel) ->
+            model |> Loadable.map (setExpandedForRelease channelUrl releaseModel false), Cmd.none
 
     let dateToHtmlTime (date: DateTime) = 
         let s = date.ToString("yyyy-MM-dd")
@@ -188,6 +220,49 @@ module App =
                         | Some d -> dateToHtmlTime d
                         | None -> str "-" ) ] ]
 
+    let expandedRelease rm =
+        let r = rm.Release
+
+        let fullRuntimeVersion (runtime: Runtime option) =
+            runtime |>
+            Option.exists (fun r -> Option.exists (fun vd -> r.Version <> vd) r.VersionDisplay)
+
+        let fullSdkVersion (sdk: Sdk) =
+            sdk.VersionDisplay |> Option.exists (fun vd -> sdk.Version <> vd)
+
+        let spanf = Printf.kprintf (fun s -> li [ ] [ str s ])
+
+        let spana href text = li [ ] [ a [ Href href ] [ str text ] ]
+
+        let (|Value|EmptyOrNone|) input = 
+            match input with
+            | Some i when not (String.IsNullOrWhiteSpace(i)) -> Value i
+            | _ -> EmptyOrNone
+
+        tr [ ]
+           [ td [ Class "hide-border" ] [ ]
+             td [ Class "hide-border" ] [ ]
+             td [ Class "hide-border"
+                  ColSpan 5.0 ]
+                [ ul [ Class "expanded-release" ]
+                      [ if fullRuntimeVersion r.Runtime then 
+                            yield spanf "Runtime version %s" r.Runtime.Value.Version 
+                        if fullSdkVersion r.Sdk then
+                            yield spanf "Sdk version %s" r.Sdk.Version
+                        match r.Sdk.VsVersion with Value v -> yield spanf "Included in Visual Studio %s" v | _ -> ()
+                        match r.Sdk.CsharpLanguage with Value v -> yield spanf "Supports C# %s" v | _ -> ()
+                        match r.Sdk.FsharpLanguage with Value v -> yield spanf "Supports F# %s" v | _ -> ()
+                        match r.Sdk.VbLanguage with Value v -> yield spanf "Supports Visual Basic %s" v | _ -> ()
+                        match r.AspnetcoreRuntime with 
+                        | Some a -> 
+                            yield spanf "ASP.NET Core Runtime %s" a.Version
+                            match a.VersionAspnetcoremodule with 
+                            | Some a when not a.IsEmpty -> 
+                                yield spanf "ASP.NET Core IIS Module %s" a.Head
+                            | _ -> ()
+                        | None -> ()
+                        match r.ReleaseNotes with Some url -> yield spana url "Release notes" | None -> () ] ] ]
+
     let expandedChannel dispatch c last =
         match c.Info with
         | Unloaded | Loading -> 
@@ -209,17 +284,23 @@ module App =
                    th [ ] [ str "Runtime" ]
                    th [ ] [ str "Sdk" ]
                    th [ ] [ ] ] ] @
-            [ for r in info.Releases ->
-                  tr [ ]
-                     [ td [ Class "hide-border" ] [ ]
-                       td [ Class "expand-button" ] [ (*chevronRight*) ]
-                       td [ ] [ str (Option.defaultValue "-" r.ReleaseVersion) ]
-                       td [ ] [ dateToHtmlTime r.ReleaseDate ]
-                       td [ ] [ str (match r.Runtime with
-                                     | Some r -> Option.defaultValue r.Version r.VersionDisplay
-                                     | None -> "-") ]
-                       td [ ] [ str (Option.defaultValue r.Sdk.Version r.Sdk.VersionDisplay) ]
-                       td [ ] ( securityIndicator r ) ] ] @
+            [ for rm in info.Releases do
+                  let r = rm.Release
+                  yield
+                      tr [ OnClick (fun _ -> (c.Index.ReleasesJson, rm)
+                                             |> (if rm.Expanded then CollapseRelease else ExpandRelease)
+                                             |> dispatch) ]
+                         [ td [ Class "hide-border" ] [ ]
+                           td [ Class "expand-button" ] 
+                              [ (if rm.Expanded then chevronDown else chevronRight) ]
+                           td [ ] [ str (Option.defaultValue "-" r.ReleaseVersion) ]
+                           td [ ] [ dateToHtmlTime r.ReleaseDate ]
+                           td [ ] [ str (match r.Runtime with
+                                         | Some r -> Option.defaultValue r.Version r.VersionDisplay
+                                         | None -> "-") ]
+                           td [ ] [ str (Option.defaultValue r.Sdk.Version r.Sdk.VersionDisplay) ]
+                           td [ ] ( securityIndicator r ) ]
+                  if rm.Expanded then yield expandedRelease rm ] @
             if last then [ ] else [ headRow ]
 
     let view (model:Model) dispatch =
@@ -237,10 +318,10 @@ module App =
             let latestSdk = 
                 latestReleaseChannel.Info 
                 |> Loadable.map (fun i -> i.Releases 
-                                          |> List.maxBy (fun r -> r.ReleaseDate)
-                                          |> fun r -> match r.Sdk.VersionDisplay with
+                                          |> List.maxBy (fun r -> r.Release.ReleaseDate)
+                                          |> fun r -> match r.Release.Sdk.VersionDisplay with
                                                       | Some v -> v
-                                                      | None -> r.Sdk.Version)
+                                                      | None -> r.Release.Sdk.Version)
             div [ ]
                 [ nav [ ]
                       [ div [ Class "container" ]
@@ -266,7 +347,7 @@ module App =
                                                     OnClick (fun _ -> dispatch (LoadChannel latestReleaseChannel.Index.ReleasesJson)) ] 
                                                   [ str "×" ] )
                                        span [ Class "label" ]
-                                            [ str "Latest SDK" ] ] ] ]                              
+                                            [ str "Latest SDK" ] ] ] ]                             
                   section [ Id "releases"
                             Class "container" ]
                           [ h2 [ ] [ str "Releases" ]
