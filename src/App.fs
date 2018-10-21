@@ -7,7 +7,6 @@ open Fable.Helpers.React.Props
 open Data
 open Fable.PowerPack
 open System
-open Fable.Import.React
 
 type Loadable<'t> =
     | Unloaded
@@ -29,8 +28,7 @@ module Loadable =
 
 type ReleaseModel =
     { Release: Release
-      Expanded: bool
-      ReleaseNotes: Loadable<string> }
+      Expanded: bool }
 
 type ChannelInfo =
     { LifecyclePolicy: Url
@@ -46,15 +44,12 @@ type Model = Loadable<ChannelModel list>
 type File =
     | Index
     | Channel of Url
-    | ReleaseNotes of channelUrl: Url * notesUrl: Url
 
 type Msg =
     | LoadIndex
     | LoadChannel of Url
-    | LoadReleaseNotes of channelUrl: Url * notesUrl: Url
     | FetchedIndex of IndexEntry list
     | FetchedChannel of Url * Channel
-    | FetchedReleaseNotes of channelUrl: Url * notesUrl: Url * string
     | FetchError of File * exn
     | ExpandChannel of Url
     | CollapseChannel of Url
@@ -62,8 +57,6 @@ type Msg =
     | CollapseRelease of Url * ReleaseModel
 
 module App =
-    let markdown = MarkdownIt.MarkdownIt.Invoke()
-
     let fetchError file ex = FetchError (file, ex)
 
     let fetchIndexCmd = 
@@ -72,29 +65,9 @@ module App =
     let fetchChannelCmd githubUrl =
         Cmd.ofPromise Fetch.channel githubUrl FetchedChannel (fetchError (Channel githubUrl))
 
-    let fetchReleaseNotesCmd channelUrl notesUrl =
-        Cmd.ofPromise Fetch.releaseNotes 
-                      notesUrl 
-                      (fun s -> FetchedReleaseNotes (channelUrl, notesUrl, s)) 
-                      (fetchError (ReleaseNotes (channelUrl, notesUrl)))
-
     let setChannelInfoFor releasesUrl info =
         List.map (fun channel -> if channel.Index.ReleasesJson = releasesUrl
                                  then { channel with Info = info }
-                                 else channel)
-
-    let setReleaseNotesForReleaseInInfo url notes (info: ChannelInfo) =
-        { info with
-            Releases =
-                info.Releases
-                |> List.map (fun rm -> if rm.Release.ReleaseNotes = Some url
-                                       then { rm with ReleaseNotes = notes }
-                                       else rm) }
-    
-    let setReleaseNotesForRelease releasesUrl notesUrl notes =
-        List.map (fun channel -> if channel.Index.ReleasesJson = releasesUrl
-                                 then { channel with Info = channel.Info
-                                                            |> Loadable.map (setReleaseNotesForReleaseInInfo notesUrl notes) }
                                  else channel)
 
     let setExpandedFor releasesUrl expanded =
@@ -116,8 +89,11 @@ module App =
                                                             |> Loadable.map (setExpandedForReleaseInInfo releaseModel expanded) }
                                  else channel)
 
+    let releaseModelToRelease rm =
+        rm.Release
+
     let releaseToReleaseModel expanded r =
-        { Release = r; Expanded = expanded; ReleaseNotes = Unloaded }
+        { Release = r; Expanded = expanded }
 
     let init () = Loading, fetchIndexCmd
 
@@ -135,9 +111,6 @@ module App =
             Loading, fetchIndexCmd
         | LoadChannel url -> 
             model |> Loadable.map (setChannelInfoFor url Loading), fetchChannelCmd url
-        | LoadReleaseNotes (channelUrl, notesUrl) ->
-            model |> Loadable.map (setReleaseNotesForRelease channelUrl notesUrl Loading), 
-            fetchReleaseNotesCmd channelUrl notesUrl
         | FetchedIndex indices -> 
             let latestChannelUrl = 
                 indices 
@@ -149,15 +122,11 @@ module App =
             let info = { LifecyclePolicy = channel.LifecyclePolicy
                          Releases = channel.Releases |> List.map (releaseToReleaseModel false) }
             model |> Loadable.map (setChannelInfoFor url (Loaded info)), Cmd.none
-        | FetchedReleaseNotes (channelUrl, url, notes) ->
-            model |> Loadable.map (setReleaseNotesForRelease channelUrl url (Loaded notes)), Cmd.none
         | FetchError (file, ex) -> 
             match file with
             | Index -> Error ex, Cmd.none
             | Channel url ->
                 model |> Loadable.map (setChannelInfoFor url (Error ex)), Cmd.none
-            | ReleaseNotes (channelUrl, url) ->
-                model |> Loadable.map (setReleaseNotesForRelease channelUrl url (Error ex)), Cmd.none
         | ExpandChannel url ->
             let loaded = 
                 match model with
@@ -171,15 +140,7 @@ module App =
         | CollapseChannel url ->
             model |> Loadable.map (setExpandedFor url false), Cmd.none
         | ExpandRelease (channelUrl, releaseModel) ->
-            let load = 
-                not (Loadable.isLoaded releaseModel.ReleaseNotes) && 
-                match releaseModel.Release.ReleaseNotes with
-                | Some s when s.EndsWith(".md") -> true
-                | _ -> false
-            model |> Loadable.map (setExpandedForRelease channelUrl releaseModel true), 
-            if load 
-            then Cmd.ofMsg (LoadReleaseNotes (channelUrl, releaseModel.Release.ReleaseNotes.Value)) 
-            else Cmd.none
+            model |> Loadable.map (setExpandedForRelease channelUrl releaseModel true), Cmd.none
         | CollapseRelease (channelUrl, releaseModel) ->
             model |> Loadable.map (setExpandedForRelease channelUrl releaseModel false), Cmd.none
 
@@ -277,37 +238,29 @@ module App =
             | Some i when not (String.IsNullOrWhiteSpace(i)) -> Some i
             | _ -> None
 
-        let raw s =
-            HTMLNode.RawText s :> ReactElement
-
-        let tee s =
-            printf "%s" s
-            s
-
         tr [ ]
            [ td [ Class "hide-border" ] [ ]
              td [ Class "hide-border" ] [ ]
              td [ Class "hide-border"
                   ColSpan 5.0 ]
-                [ yield ul [ Class "expanded-release" ]
-                           [ if fullRuntimeVersion r.Runtime then 
-                                 yield lif "Runtime version %s" r.Runtime.Value.Version 
-                             if fullSdkVersion r.Sdk then
-                                 yield lif "Sdk version %s" r.Sdk.Version
-                             match r.Sdk.VsVersion with SomeText v -> yield lif "Included in Visual Studio %s" v | _ -> ()
-                             match r.Sdk.CsharpLanguage with SomeText v -> yield lif "Supports C# %s" v | _ -> ()
-                             match r.Sdk.FsharpLanguage with SomeText v -> yield lif "Supports F# %s" v | _ -> ()
-                             match r.Sdk.VbLanguage with SomeText v -> yield lif "Supports Visual Basic %s" v | _ -> ()
-                             match r.AspnetcoreRuntime with 
-                             | Some a -> 
-                                 yield lif "ASP.NET Core Runtime %s" a.Version
-                                 match a.VersionAspnetcoremodule with 
-                                 | Some a when not a.IsEmpty -> 
-                                     yield lif "ASP.NET Core IIS Module %s" a.Head
-                                 | _ -> ()
-                             | None -> ()
-                             match r.ReleaseNotes with Some url -> yield lia url "Release notes" | None -> () ]
-                  match rm.ReleaseNotes with Loaded n -> yield markdown.render n |> tee |> raw | _ -> () ] ]
+                [ ul [ Class "expanded-release" ]
+                      [ if fullRuntimeVersion r.Runtime then 
+                            yield lif "Runtime version %s" r.Runtime.Value.Version 
+                        if fullSdkVersion r.Sdk then
+                            yield lif "Sdk version %s" r.Sdk.Version
+                        match r.Sdk.VsVersion with SomeText v -> yield lif "Included in Visual Studio %s" v | _ -> ()
+                        match r.Sdk.CsharpLanguage with SomeText v -> yield lif "Supports C# %s" v | _ -> ()
+                        match r.Sdk.FsharpLanguage with SomeText v -> yield lif "Supports F# %s" v | _ -> ()
+                        match r.Sdk.VbLanguage with SomeText v -> yield lif "Supports Visual Basic %s" v | _ -> ()
+                        match r.AspnetcoreRuntime with 
+                        | Some a -> 
+                            yield lif "ASP.NET Core Runtime %s" a.Version
+                            match a.VersionAspnetcoremodule with 
+                            | Some a when not a.IsEmpty -> 
+                                yield lif "ASP.NET Core IIS Module %s" a.Head
+                            | _ -> ()
+                        | None -> ()
+                        match r.ReleaseNotes with Some url -> yield lia url "Release notes" | None -> () ] ] ]
 
     let expandedChannel dispatch c last =
         match c.Info with

@@ -32,12 +32,3 @@ module Fetch =
             | Ok res -> return githubUrl, res
             | Error e -> return failwith e
         }
-
-    let releaseNotes (url: Url) =
-        promise {
-            let url = if url.Contains("github.com") 
-                      then url.Replace("github.com", "raw.githubusercontent.com").Replace("/blob/", "/")
-                      else url
-            let! response = fetch url []
-            return! response.text()
-        }

@@ -5,7 +5,6 @@
   <ItemGroup>
     <Compile Include="Data.fs" />
     <Compile Include="Fetch.fs" />
-    <Compile Include="MarkdownIt.fs" />
     <Compile Include="App.fs" />
   </ItemGroup>
   <ItemGroup>
