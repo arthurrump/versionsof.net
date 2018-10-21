@@ -135,7 +135,6 @@ module App =
                     | Some c -> Loadable.isLoaded c.Info
                     | None -> false
                 | _ -> false
-
             model |> Loadable.map (setExpandedFor url true), 
             if loaded then Cmd.none else Cmd.ofMsg (LoadChannel url)
         | CollapseChannel url ->
@@ -224,20 +223,20 @@ module App =
         let r = rm.Release
 
         let fullRuntimeVersion (runtime: Runtime option) =
-            runtime |>
-            Option.exists (fun r -> Option.exists (fun vd -> r.Version <> vd) r.VersionDisplay)
+            runtime
+            |> Option.exists (fun r -> r.VersionDisplay |> Option.exists (fun vd -> r.Version <> vd))
 
         let fullSdkVersion (sdk: Sdk) =
             sdk.VersionDisplay |> Option.exists (fun vd -> sdk.Version <> vd)
 
-        let spanf = Printf.kprintf (fun s -> li [ ] [ str s ])
+        let lif = Printf.kprintf (fun s -> li [ ] [ str s ])
 
-        let spana href text = li [ ] [ a [ Href href ] [ str text ] ]
+        let lia href text = li [ ] [ a [ Href href ] [ str text ] ]
 
-        let (|Value|EmptyOrNone|) input = 
+        let (|SomeText|_|) input = 
             match input with
-            | Some i when not (String.IsNullOrWhiteSpace(i)) -> Value i
-            | _ -> EmptyOrNone
+            | Some i when not (String.IsNullOrWhiteSpace(i)) -> Some i
+            | _ -> None
 
         tr [ ]
            [ td [ Class "hide-border" ] [ ]
@@ -246,22 +245,22 @@ module App =
                   ColSpan 5.0 ]
                 [ ul [ Class "expanded-release" ]
                       [ if fullRuntimeVersion r.Runtime then 
-                            yield spanf "Runtime version %s" r.Runtime.Value.Version 
+                            yield lif "Runtime version %s" r.Runtime.Value.Version 
                         if fullSdkVersion r.Sdk then
-                            yield spanf "Sdk version %s" r.Sdk.Version
-                        match r.Sdk.VsVersion with Value v -> yield spanf "Included in Visual Studio %s" v | _ -> ()
-                        match r.Sdk.CsharpLanguage with Value v -> yield spanf "Supports C# %s" v | _ -> ()
-                        match r.Sdk.FsharpLanguage with Value v -> yield spanf "Supports F# %s" v | _ -> ()
-                        match r.Sdk.VbLanguage with Value v -> yield spanf "Supports Visual Basic %s" v | _ -> ()
+                            yield lif "Sdk version %s" r.Sdk.Version
+                        match r.Sdk.VsVersion with SomeText v -> yield lif "Included in Visual Studio %s" v | _ -> ()
+                        match r.Sdk.CsharpLanguage with SomeText v -> yield lif "Supports C# %s" v | _ -> ()
+                        match r.Sdk.FsharpLanguage with SomeText v -> yield lif "Supports F# %s" v | _ -> ()
+                        match r.Sdk.VbLanguage with SomeText v -> yield lif "Supports Visual Basic %s" v | _ -> ()
                         match r.AspnetcoreRuntime with 
                         | Some a -> 
-                            yield spanf "ASP.NET Core Runtime %s" a.Version
+                            yield lif "ASP.NET Core Runtime %s" a.Version
                             match a.VersionAspnetcoremodule with 
                             | Some a when not a.IsEmpty -> 
-                                yield spanf "ASP.NET Core IIS Module %s" a.Head
+                                yield lif "ASP.NET Core IIS Module %s" a.Head
                             | _ -> ()
                         | None -> ()
-                        match r.ReleaseNotes with Some url -> yield spana url "Release notes" | None -> () ] ] ]
+                        match r.ReleaseNotes with Some url -> yield lia url "Release notes" | None -> () ] ] ]
 
     let expandedChannel dispatch c last =
         match c.Info with
