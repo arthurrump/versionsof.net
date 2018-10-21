@@ -308,3 +308,37 @@ nav a.active {
     margin: 2.0rem;
     border-color: #000;
 }
+
+#search {
+    display: flex;
+    justify-content: center;
+}
+
+#search input {
+    margin: 1.5em 0 0.5em;
+    border: solid #e3e3e3;
+    background: #e3e3e3;
+    min-width: 100%;
+    border-radius: 3px;
+    padding: 0.4em;
+}
+
+@media (min-width: 550px) {
+    #search input {
+        min-width: 50%;
+    }
+}
+
+@media (min-width: 850px) {
+    #search input {
+        min-width: 35%;
+    }
+}
+
+#search input:focus {
+    background: #fff;
+}
+
+#search button {
+    
+}

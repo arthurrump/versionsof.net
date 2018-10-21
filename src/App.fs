@@ -39,7 +39,12 @@ type ChannelModel =
       Info: Loadable<ChannelInfo>
       Expanded: bool }
 
-type Model = Loadable<ChannelModel list>
+type LoadedModel =
+    { Channels: ChannelModel list
+      SearchFocus: bool
+      SearchQuery: string }
+
+type Model = Loadable<LoadedModel>
 
 type File =
     | Index
@@ -55,6 +60,8 @@ type Msg =
     | CollapseChannel of Url
     | ExpandRelease of Url * ReleaseModel
     | CollapseRelease of Url * ReleaseModel
+    | SearchFocusChanged of bool
+    | SearchQueryChanged of string
 
 module App =
     let fetchError file ex = FetchError (file, ex)
@@ -105,44 +112,54 @@ module App =
         List.filter (fun i -> i.Index.SupportPhase <> "preview")
         >> List.maxBy (fun i -> i.Index.ChannelVersion)
 
+    let updateChannels f model =
+        { model with Channels = model.Channels |> f }
+
     let update (msg:Msg) (model:Model) =
         match msg with
         | LoadIndex ->
             Loading, fetchIndexCmd
         | LoadChannel url -> 
-            model |> Loadable.map (setChannelInfoFor url Loading), fetchChannelCmd url
+            model |> Loadable.map (updateChannels (setChannelInfoFor url Loading)), fetchChannelCmd url
         | FetchedIndex indices -> 
             let latestChannelUrl = 
                 indices 
                 |> latestNonPreviewIndexEntry
                 |> fun i -> i.ReleasesJson
             let channels = indices |> List.map (fun i -> { Index = i; Info = Unloaded; Expanded = false })
-            Loaded channels, Cmd.ofMsg (LoadChannel latestChannelUrl)
+            Loaded { Channels = channels
+                     SearchFocus = false
+                     SearchQuery = "" }, 
+            Cmd.ofMsg (LoadChannel latestChannelUrl)
         | FetchedChannel (url, channel) -> 
             let info = { LifecyclePolicy = channel.LifecyclePolicy
                          Releases = channel.Releases |> List.map (releaseToReleaseModel false) }
-            model |> Loadable.map (setChannelInfoFor url (Loaded info)), Cmd.none
+            model |> Loadable.map (updateChannels (setChannelInfoFor url (Loaded info))), Cmd.none
         | FetchError (file, ex) -> 
             match file with
             | Index -> Error ex, Cmd.none
             | Channel url ->
-                model |> Loadable.map (setChannelInfoFor url (Error ex)), Cmd.none
+                model |> Loadable.map (updateChannels (setChannelInfoFor url (Error ex))), Cmd.none
         | ExpandChannel url ->
             let loaded = 
                 match model with
                 | Loaded cs ->
-                    match cs |> List.tryFind (fun c -> c.Index.ReleasesJson = url) with
+                    match cs.Channels |> List.tryFind (fun c -> c.Index.ReleasesJson = url) with
                     | Some c -> Loadable.isLoaded c.Info
                     | None -> false
                 | _ -> false
-            model |> Loadable.map (setExpandedFor url true), 
+            model |> Loadable.map (updateChannels (setExpandedFor url true)), 
             if loaded then Cmd.none else Cmd.ofMsg (LoadChannel url)
         | CollapseChannel url ->
-            model |> Loadable.map (setExpandedFor url false), Cmd.none
+            model |> Loadable.map (updateChannels (setExpandedFor url false)), Cmd.none
         | ExpandRelease (channelUrl, releaseModel) ->
-            model |> Loadable.map (setExpandedForRelease channelUrl releaseModel true), Cmd.none
+            model |> Loadable.map (updateChannels (setExpandedForRelease channelUrl releaseModel true)), Cmd.none
         | CollapseRelease (channelUrl, releaseModel) ->
-            model |> Loadable.map (setExpandedForRelease channelUrl releaseModel false), Cmd.none
+            model |> Loadable.map (updateChannels (setExpandedForRelease channelUrl releaseModel false)), Cmd.none
+        | SearchFocusChanged focus ->
+            model |> Loadable.map (fun m -> { m with SearchFocus = focus }), Cmd.none
+        | SearchQueryChanged query ->
+            model |> Loadable.map (fun m -> { m with SearchQuery = query }), Cmd.none
 
     let dateToHtmlTime (date: DateTime) = 
         let s = date.ToString("yyyy-MM-dd")
@@ -302,6 +319,19 @@ module App =
                   if rm.Expanded then yield expandedRelease rm ] @
             if last then [ ] else [ headRow ]
 
+    let searchSuggestions m =
+        let (|Release|Runtime|Sdk|AspRuntime|AspModule|Unknown|) (query: string) =
+            let q = query.Trim().ToLowerInvariant().Split() |> Array.toList
+            match q with
+            | "rel"::qs | "release"::qs -> Release qs
+            | "rt"::qs | "run"::qs | "runtime"::qs -> Runtime qs
+            | "sdk"::qs -> Sdk qs
+            | "asp"::qs | "aspnet"::qs | "asprt"::qs | "aspruntime"::qs | "aspnetrt"::qs -> AspRuntime qs
+            | "aspmod"::qs | "iismod"::qs -> AspModule qs
+            | _ -> Unknown q
+            
+        div [ ] [ ]
+
     let view (model:Model) dispatch =
         match model with
         | Unloaded | Loading -> 
@@ -311,7 +341,8 @@ module App =
             div [ Class "main-error" ]
                 [ div [ Class "container column" ]
                       ( errorView ex (fun _ -> dispatch LoadIndex) ) ]
-        | Loaded channels ->
+        | Loaded m ->
+            let channels = m.Channels
             let latestReleaseChannel = channels |> latestNonPreviewChannel
             let latestRelease = latestReleaseChannel.Index.LatestRelease
             let latestSdk = 
@@ -346,7 +377,16 @@ module App =
                                                     OnClick (fun _ -> dispatch (LoadChannel latestReleaseChannel.Index.ReleasesJson)) ] 
                                                   [ str "×" ] )
                                        span [ Class "label" ]
-                                            [ str "Latest SDK" ] ] ] ]                             
+                                            [ str "Latest SDK" ] ] ] ]
+                  section [ Id "search"
+                            Class "container" ]
+                          [ yield input [ Placeholder "Find a version..."
+                                          Props.Type "search"
+                                          OnFocus (fun _ -> dispatch (SearchFocusChanged true))
+                                          OnBlur (fun _ -> dispatch (SearchFocusChanged false))
+                                          OnInput (fun e -> dispatch (SearchQueryChanged e.Value))
+                                          Value m.SearchQuery ]
+                            if m.SearchFocus then yield searchSuggestions m ]
                   section [ Id "releases"
                             Class "container" ]
                           [ h2 [ ] [ str "Releases" ]
