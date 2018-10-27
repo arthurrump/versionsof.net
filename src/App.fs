@@ -41,8 +41,7 @@ type ChannelModel =
 
 type LoadedModel =
     { Channels: ChannelModel list
-      SearchFocus: bool
-      SearchQuery: string }
+      Search: Search.Model }
 
 type Model = Loadable<LoadedModel>
 
@@ -60,8 +59,7 @@ type Msg =
     | CollapseChannel of Url
     | ExpandRelease of Url * ReleaseModel
     | CollapseRelease of Url * ReleaseModel
-    | SearchFocusChanged of bool
-    | SearchQueryChanged of string
+    | Search of Search.Msg
 
 module App =
     let fetchError file ex = FetchError (file, ex)
@@ -128,8 +126,7 @@ module App =
                 |> fun i -> i.ReleasesJson
             let channels = indices |> List.map (fun i -> { Index = i; Info = Unloaded; Expanded = false })
             Loaded { Channels = channels
-                     SearchFocus = false
-                     SearchQuery = "" }, 
+                     Search = Search.init () }, 
             Cmd.ofMsg (LoadChannel latestChannelUrl)
         | FetchedChannel (url, channel) -> 
             let info = { LifecyclePolicy = channel.LifecyclePolicy
@@ -319,76 +316,6 @@ module App =
                   if rm.Expanded then yield expandedRelease rm ] @
             if last then [ ] else [ headRow ]
 
-    let searchSuggestions m =
-        let (|Release|Runtime|Sdk|AspRuntime|AspModule|Empty|Unknown|) (query: string) =
-            let q = query.Trim().ToLowerInvariant()
-            let qa = q.Split() |> Array.toList
-            printfn "%A" qa
-            match qa with
-            | "rel"::qs | "release"::qs -> Release (String.concat " " qs)
-            | "rt"::qs | "run"::qs | "runtime"::qs -> Runtime (String.concat " " qs)
-            | "sdk"::qs -> Sdk (String.concat " " qs)
-            | "asp"::qs | "aspnet"::qs | "asprt"::qs |
-              "aspruntime"::qs | "aspnetrt"::qs -> AspRuntime (String .concat " " qs)
-            | "aspmod"::qs | "iismod"::qs -> AspModule (String.concat " " qs)
-            | [ "" ] -> printfn "Empty!"; Empty
-            | _ -> printfn "Unknown!"; Unknown q
-
-        let (|Version|_|) (input: string) =
-            let i = input.Trim().ToLowerInvariant()
-            let versionParts =
-                i.Split('.') 
-                |> Array.toList
-                |> List.filter (fun i -> i <> "")
-            let isVersionLastPart (last: string) =
-                let ls = last.Split('-') |> Array.toList
-                Int32.TryParse(ls.Head) |> fst
-            let isVersion = not (List.isEmpty versionParts) && 
-                            List.forall (fun i -> Int32.TryParse(i) |> fst || 
-                                                  if i = List.last versionParts 
-                                                  then isVersionLastPart i 
-                                                  else false) versionParts
-            if isVersion then Some i else None
-            
-        let (|StrLength|_|) length (input: string) =
-            if input.Length = length then Some input else None
-
-        let searchHints = 
-            [ ("rel", "Release")
-              ("rt", "Runtime")
-              ("sdk", "Sdk")
-              ("asp", "ASP.NET Core Runtime")
-              ("aspmod", "ASP.NET Core IIS Module") ]
-
-        let sugLi text label =
-            li [ ] [ str text
-                     span [ Class "label" ] [ str label ] ]
-
-        let hintList version hints =
-            hints |> List.map (fun (t, n) -> sugLi (sprintf "%s %s" t version) n)
-
-        div [ Id "search-suggestions" ]
-            [ ul [ ] 
-                 ( match m.SearchQuery with
-                   | Empty -> searchHints |> hintList "x.x.x"
-                   | Version x -> searchHints |> hintList x
-                   | StrLength 1 c -> searchHints |> List.filter (fun (s, _) -> s.StartsWith(c)) |> hintList "x.x.x"
-                   | StrLength 2 c -> searchHints |> List.filter (fun (s, _) -> s.StartsWith(c)) |> hintList "x.x.x"
-                   | Release (Version x) -> [ sugLi x "Release" ]
-                   | Release "" -> [ sugLi "x.x.x" "Release" ]
-                   | Runtime (Version x) -> [ sugLi x "Runtime" ]
-                   | Runtime "" -> [ sugLi "x.x.x" "Runtime" ]
-                   | Sdk (Version x) -> [ sugLi x "Sdk" ]
-                   | Sdk "" -> [ sugLi "x.x.x" "Sdk"]
-                   | StrLength 3 c -> searchHints |> List.filter (fun (s, _) -> s.StartsWith(c)) |> hintList "x.x.x"
-                   | AspRuntime (Version x) -> [ sugLi x "ASP.NET Core Runtime" ]
-                   | AspRuntime "" -> [ sugLi "x.x.x" "ASP.NET Core Runtime" ]
-                   | StrLength 4 c -> searchHints |> List.filter (fun (s, _) -> s.StartsWith(c)) |> hintList "x.x.x"
-                   | StrLength 5 c -> searchHints |> List.filter (fun (s, _) -> s.StartsWith(c)) |> hintList "x.x.x"
-                   | AspModule (Version x) -> [ sugLi x "ASP.NET Core IIS Module" ]
-                   | AspModule "" -> [ sugLi "x.x.x" "ASP.NET Core IIS Module" ]
-                   | x -> [ sugLi x "Invalid version" ] ) ]
-
     let view (model:Model) dispatch =
         match model with
         | Unloaded | Loading -> 
@@ -437,15 +364,7 @@ module App =
                                             [ str "Latest SDK" ] ] ] ]
                   section [ Id "search"
                             Class "container" ]
-                          [ div [ Class "input-wrapper" ]
-                                [ yield input [ Placeholder "Find a version..."
-                                                Props.Type "search"
-                                                OnFocus (fun _ -> dispatch (SearchFocusChanged true))
-                                                OnBlur (fun _ -> dispatch (SearchFocusChanged false))
-                                                OnChange (fun e -> dispatch (SearchQueryChanged e.Value))
-                                                Value m.SearchQuery
-                                                Class (if m.SearchFocus then "focus" else "") ]
-                                  if m.SearchFocus then yield searchSuggestions m ] ]
+                          [ Search.view m.Search (Search >> dispatch) ]
                   section [ Id "releases"
                             Class "container" ]
                           [ h2 [ ] [ str "Releases" ]
