@@ -291,9 +291,16 @@ nav a.active {
     color: #dc3545;
 }
 
-.expand-button > img {
+.expand-button img {
     height: 0.9rem;
-    cursor: pointer;
+}
+
+.expand-button button {
+    padding: 0;
+    border: none;
+    background: none;
+    height: auto;
+    line-height: 0;
 }
 
 .expanded-loading {
