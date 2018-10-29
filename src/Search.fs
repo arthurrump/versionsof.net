@@ -3,6 +3,7 @@ namespace VersionsOfDotNet
 open System
 open Fable.Helpers.React
 open Fable.Helpers.React.Props
+open Version
 
 module Search =
     type SearchSuggestion =
@@ -11,106 +12,108 @@ module Search =
           Valid: bool }
 
     type Model =
-        { SearchFocus: bool
-          SearchQuery: string
+        { InFocus: bool
+          Query: string
           Suggestions: SearchSuggestion list }
 
     type Msg =
-        | SearchFocusChanged of bool
-        | SearchQueryChanged of string
+        | FocusChanged of bool
+        | QueryChanged of string
+
+    type QueryPrefix =
+        | Release
+        | Runtime
+        | Sdk
+        | AspRuntime
+        | AspModule
+
+        static member all =
+            [ Release; Runtime; Sdk; AspRuntime; AspModule ]
+
+    let prefixToLabel qp =
+        match qp with
+        | Release -> ("rel", "Release")
+        | Runtime -> ("rt", "Runtime")
+        | Sdk -> ("sdk", "Sdk")
+        | AspRuntime -> ("asp", "ASP.NET Core Runtime")
+        | AspModule -> ("aspmod", "ASP.NET Core IIS Module")
+
+    let (|PartialPrefix|Prefix|Empty|Unknown|) (query: string) =
+        let q = query.Trim().ToLowerInvariant()
+        let qa = q.Split() |> Array.toList
+        let ts = String.concat " "
+        match qa with
+        | "r"::[] -> PartialPrefix [ Release; Runtime ]
+        | "rt"::qs -> Prefix (Runtime, ts qs)
+        | "re"::[] -> PartialPrefix [ Release ]
+        | "rel"::qs -> Prefix (Release, ts qs)
+        | "s"::[] | "sd"::[] -> PartialPrefix [ Sdk ]
+        | "sdk"::qs -> Prefix (Sdk, ts qs)
+        | "a"::[] | "as"::[] | "asp"::[] -> PartialPrefix [ AspRuntime; AspModule ]
+        | "asp"::qs -> Prefix (AspRuntime, ts qs)
+        | "aspm"::[] | "aspmo"::[] -> PartialPrefix [ AspModule ]
+        | "aspmod"::qs -> Prefix (AspModule, ts qs)
+        | [ "" ] -> Empty
+        | _ -> Unknown q
+
+    let sug text label valid = 
+        { Text = text; Label = label; Valid = valid }
+
+    let suggestionsForQuery query =
+        match query with
+        | PartialPrefix pfs -> 
+            pfs 
+            |> List.map (fun pf -> let text, label = prefixToLabel pf
+                                   sug (sprintf "%s x.x.x" text) label false)
+        | Prefix (pf, "") -> 
+            let pretext, label = prefixToLabel pf
+            [ sug (sprintf "%s x.x.x" pretext) label false ]
+        | Prefix (pf, Version v) ->
+            let _, label = prefixToLabel pf
+            [ sug (string v) label true ]
+        | Prefix (pf, text) ->
+            let _, label = prefixToLabel pf
+            [ sug text label false ]
+        | Version v ->
+            [ sug (string v) "" true ] @
+            [ for pf in QueryPrefix.all -> 
+                let text, label = prefixToLabel pf
+                sug (sprintf "%s %O" text v) label true ]
+        | Empty ->
+            [ sug "x.x.x" "" false ] @
+            [ for pf in QueryPrefix.all ->
+                let text, label = prefixToLabel pf
+                sug (sprintf "%s x.x.x" text) label false ]
+        | text ->
+            [ sug text "Invalid query" false ]
 
     let init () = 
-        { SearchFocus = false
-          SearchQuery = ""
-          Suggestions = [ ] }
-
-    let searchSuggestions m =
-        let (|Release|Runtime|Sdk|AspRuntime|AspModule|Empty|Unknown|) (query: string) =
-            let q = query.Trim().ToLowerInvariant()
-            let qa = q.Split() |> Array.toList
-            printfn "%A" qa
-            match qa with
-            | "rel"::qs | "release"::qs -> Release (String.concat " " qs)
-            | "rt"::qs | "run"::qs | "runtime"::qs -> Runtime (String.concat " " qs)
-            | "sdk"::qs -> Sdk (String.concat " " qs)
-            | "asp"::qs | "aspnet"::qs | "asprt"::qs |
-              "aspruntime"::qs | "aspnetrt"::qs -> AspRuntime (String .concat " " qs)
-            | "aspmod"::qs | "iismod"::qs -> AspModule (String.concat " " qs)
-            | [ "" ] -> printfn "Empty!"; Empty
-            | _ -> printfn "Unknown!"; Unknown q
-
-        let (|Version|_|) (input: string) =
-            let i = input.Trim().ToLowerInvariant()
-            let versionParts =
-                i.Split('.') 
-                |> Array.toList
-                |> List.filter (fun i -> i <> "")
-            let isVersionLastPart (last: string) =
-                let ls = last.Split('-') |> Array.toList
-                Int32.TryParse(ls.Head) |> fst
-            let isVersion = not (List.isEmpty versionParts) && 
-                            List.forall (fun i -> Int32.TryParse(i) |> fst || 
-                                                  if i = List.last versionParts 
-                                                  then isVersionLastPart i 
-                                                  else false) versionParts
-            if isVersion then Some i else None
-            
-        let (|StrLength|_|) length (input: string) =
-            if input.Length = length then Some input else None
-
-        let searchHints = 
-            [ ("rel", "Release")
-              ("rt", "Runtime")
-              ("sdk", "Sdk")
-              ("asp", "ASP.NET Core Runtime")
-              ("aspmod", "ASP.NET Core IIS Module") ]
-
-        let sugLi text label =
-            li [ TabIndex 0.0 ] 
-               [ yield str text
-                 if not (String.IsNullOrWhiteSpace(label)) 
-                    then yield span [ Class "label" ] [ str label ] ]
-
-        let hintList version hints =
-            hints |> List.map (fun (t, n) -> sugLi (sprintf "%s %s" t version) n)
-
-        div [ Id "search-suggestions" ]
-            [ ul [ ] 
-                 ( match m.SearchQuery with
-                   | Empty -> sugLi "*" "" :: sugLi "x.x.x" "" :: (searchHints |> hintList "x.x.x")
-                   | Version x -> sugLi x "" :: (searchHints |> hintList x)
-                   | "*" -> [ sugLi "*" "" ]
-                   | StrLength 1 c
-                   | StrLength 2 c -> searchHints |> List.filter (fun (s, _) -> s.StartsWith(c)) |> hintList "x.x.x"
-                   | Release (Version x) -> [ sugLi x "Release" ]
-                   | Release "" -> [ sugLi "x.x.x" "Release" ]
-                   | Runtime (Version x) -> [ sugLi x "Runtime" ]
-                   | Runtime "" -> [ sugLi "x.x.x" "Runtime" ]
-                   | Sdk (Version x) -> [ sugLi x "Sdk" ]
-                   | Sdk "" -> [ sugLi "x.x.x" "Sdk"]
-                   | StrLength 3 c -> searchHints |> List.filter (fun (s, _) -> s.StartsWith(c)) |> hintList "x.x.x"
-                   | AspRuntime (Version x) -> [ sugLi x "ASP.NET Core Runtime" ]
-                   | AspRuntime "" -> [ sugLi "x.x.x" "ASP.NET Core Runtime" ]
-                   | StrLength 4 c 
-                   | StrLength 5 c -> searchHints |> List.filter (fun (s, _) -> s.StartsWith(c)) |> hintList "x.x.x"
-                   | AspModule (Version x) -> [ sugLi x "ASP.NET Core IIS Module" ]
-                   | AspModule "" -> [ sugLi "x.x.x" "ASP.NET Core IIS Module" ]
-                   | x -> [ sugLi x "Invalid version" ] ) ]
+        { InFocus = false
+          Query = ""
+          Suggestions = suggestionsForQuery "" }
 
     let update msg model = 
         match msg with
-        | SearchFocusChanged focus ->
-            model |> fun m -> { m with SearchFocus = focus }
-        | SearchQueryChanged query ->
-            model |> fun m -> { m with SearchQuery = query }
+        | FocusChanged focus ->
+            { model with InFocus = focus }
+        | QueryChanged query ->
+            { model with Query = query; Suggestions = suggestionsForQuery query }
+
+    let sugLi sug =
+        li [ TabIndex 0.0 ] 
+           [ yield str sug.Text
+             if not (String.IsNullOrWhiteSpace(sug.Label)) 
+                then yield span [ Class "label" ] [ str sug.Label ] ]
 
     let view model dispatch =
         div [ Class "input-wrapper" 
-              OnFocus (fun _ -> dispatch (SearchFocusChanged true))
-              OnBlur (fun _ -> dispatch (SearchFocusChanged false)) ]
+              OnFocus (fun _ -> dispatch (FocusChanged true))
+              OnBlur (fun _ -> dispatch (FocusChanged false)) ]
             [ yield input [ Placeholder "Find a version..."
                             Props.Type "search"
-                            OnChange (fun e -> dispatch (SearchQueryChanged e.Value))
-                            Value model.SearchQuery
-                            Class (if model.SearchFocus then "focus" else "") ]
-              if model.SearchFocus then yield searchSuggestions model ]
+                            OnChange (fun e -> dispatch (QueryChanged e.Value))
+                            Value model.Query
+                            Class (if model.InFocus then "focus" else "") ]
+              if model.InFocus then 
+                yield div [ Id "search-suggestions" ]
+                          [ ul [ ] (model.Suggestions |> List.map sugLi) ] ]
