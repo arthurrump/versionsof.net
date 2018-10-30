@@ -73,7 +73,7 @@ module Search =
             [ sug (string v) label true ]
         | Prefix (pf, text) ->
             let _, label = prefixToLabel pf
-            [ sug text label false ]
+            [ sug text (sprintf "%s - Invalid version" label) false ]
         | Version v ->
             [ sug (string v) "" true ] @
             [ for pf in QueryPrefix.all -> 

@@ -215,6 +215,8 @@ module App =
              th [ ] [ str "Support" ]
              th [ ] [ str "End of Life date" ] ]
 
+    let str (v: obj) = string v |> str
+
     let channelRow dispatch c =
         let i = c.Index
         let toggleExpand _ =
@@ -238,12 +240,13 @@ module App =
 
         let fullRuntimeVersion (runtime: Runtime option) =
             runtime
-            |> Option.exists (fun r -> r.VersionDisplay |> Option.exists (fun vd -> r.Version <> vd))
+            |> Option.exists (fun r -> r.VersionDisplay 
+                                       |> Option.exists (fun vd -> r.Version |> Version.displayedAs vd))
 
         let fullSdkVersion (sdk: Sdk) =
-            sdk.VersionDisplay |> Option.exists (fun vd -> sdk.Version <> vd)
+            sdk.VersionDisplay |> Option.exists (fun vd -> sdk.Version |> Version.displayedAs vd)
 
-        let lif = Printf.kprintf (fun s -> li [ ] [ str s ])
+        let lif fmt = Printf.kprintf (fun s -> li [ ] [ str s ]) fmt
 
         let lia href text = li [ ] [ a [ Href href ] [ str text ] ]
 
@@ -259,19 +262,19 @@ module App =
                   ColSpan 5.0 ]
                 [ ul [ Class "expanded-release" ]
                       [ if fullRuntimeVersion r.Runtime then 
-                            yield lif "Runtime version %s" r.Runtime.Value.Version 
+                            yield lif "Runtime version %O" r.Runtime.Value.Version
                         if fullSdkVersion r.Sdk then
-                            yield lif "Sdk version %s" r.Sdk.Version
+                            yield lif "Sdk version %O" r.Sdk.Version
                         match r.Sdk.VsVersion with SomeText v -> yield lif "Included in Visual Studio %s" v | _ -> ()
                         match r.Sdk.CsharpLanguage with SomeText v -> yield lif "Supports C# %s" v | _ -> ()
                         match r.Sdk.FsharpLanguage with SomeText v -> yield lif "Supports F# %s" v | _ -> ()
                         match r.Sdk.VbLanguage with SomeText v -> yield lif "Supports Visual Basic %s" v | _ -> ()
                         match r.AspnetcoreRuntime with 
                         | Some a -> 
-                            yield lif "ASP.NET Core Runtime %s" a.Version
+                            yield lif "ASP.NET Core Runtime %O" a.Version
                             match a.VersionAspnetcoremodule with 
                             | Some a when not a.IsEmpty -> 
-                                yield lif "ASP.NET Core IIS Module %s" a.Head
+                                yield lif "ASP.NET Core IIS Module %O" a.Head
                             | _ -> ()
                         | None -> ()
                         match r.ReleaseNotes with Some url -> yield lia url "Release notes" | None -> () ] ] ]
@@ -306,12 +309,12 @@ module App =
                          [ td [ Class "hide-border" ] [ ]
                            td [ Class "expand-button" ] 
                               [ (if rm.Expanded then chevronDown else chevronRight) [ ] ]
-                           td [ ] [ str (Option.defaultValue "-" r.ReleaseVersion) ]
+                           td [ ] [ str (string r.ReleaseVersion) ]
                            td [ ] [ dateToHtmlTime r.ReleaseDate ]
                            td [ ] [ str (match r.Runtime with
-                                         | Some r -> Option.defaultValue r.Version r.VersionDisplay
+                                         | Some r -> Option.defaultValue (string r.Version) r.VersionDisplay
                                          | None -> "-") ]
-                           td [ ] [ str (Option.defaultValue r.Sdk.Version r.Sdk.VersionDisplay) ]
+                           td [ ] [ str (Option.defaultValue (string r.Sdk.Version) r.Sdk.VersionDisplay) ]
                            td [ ] ( securityIndicator r ) ]
                   if rm.Expanded then yield expandedRelease rm ] @
             if last then [ ] else [ headRow ]
@@ -335,7 +338,7 @@ module App =
                                           |> List.maxBy (fun r -> r.Release.ReleaseDate)
                                           |> fun r -> match r.Release.Sdk.VersionDisplay with
                                                       | Some v -> v
-                                                      | None -> r.Release.Sdk.Version)
+                                                      | None -> string r.Release.Sdk.Version)
             div [ ]
                 [ nav [ ]
                       [ div [ Class "container" ]

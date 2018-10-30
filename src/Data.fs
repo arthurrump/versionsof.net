@@ -2,10 +2,21 @@ namespace VersionsOfDotNet
 
 open Thoth.Json
 open System
+open VersionsOfDotNet // To get our Version type, instead of the one in System
 
 module Data =
     type Url = string
-    type Version = string
+    type DisplayVersion = string
+
+    module private Decode =
+        let version path value =
+            Decode.string path value
+            |> (fun r -> match r with
+                         | Ok s ->
+                             match Version.parse s with
+                             | Some v -> Ok v
+                             | None -> (path, Decode.BadPrimitive("a version", value)) |> Error
+                         | Error v -> Error v)
 
     let private getOptionalDate (get: Decode.IGetters) jsonName =
         get.Required.Field jsonName Decode.string
@@ -24,8 +35,8 @@ module Data =
         static member Decoder : Decode.Decoder<IndexEntry> = 
             Decode.object
                 (fun get -> 
-                    { ChannelVersion = get.Required.Field "channel-version" Decode.string
-                      LatestRelease = get.Required.Field "latest-release" Decode.string
+                    { ChannelVersion = get.Required.Field "channel-version" Decode.version
+                      LatestRelease = get.Required.Field "latest-release" Decode.version
                       LatestReleaseDate = get.Required.Field "latest-release-date" Decode.datetime
                       Product = get.Required.Field "product" Decode.string
                       SupportPhase = get.Required.Field "support-phase" Decode.string
@@ -46,33 +57,33 @@ module Data =
 
     type Runtime =
         { Version: Version
-          VersionDisplay: Version option
-          VsVersion: Version option
+          VersionDisplay: DisplayVersion option
+          VsVersion: DisplayVersion option
           Files: File list }
 
         static member Decoder : Decode.Decoder<Runtime> =
             Decode.object
                 (fun get ->
-                    { Version = get.Required.Field "version" Decode.string
+                    { Version = get.Required.Field "version" Decode.version
                       VersionDisplay = get.Optional.Field "version-display" Decode.string
                       VsVersion = get.Optional.Field "vs-version" Decode.string
                       Files = get.Required.Field "files" (Decode.list File.Decoder) })
 
     type Sdk = 
         { Version: Version
-          VersionDisplay: Version option
-          VsVersion: Version option
-          CsharpLanguage: Version option
-          FsharpLanguage: Version option
-          VbLanguage: Version option
+          VersionDisplay: DisplayVersion option
+          VsVersion: DisplayVersion option
+          CsharpLanguage: DisplayVersion option
+          FsharpLanguage: DisplayVersion option
+          VbLanguage: DisplayVersion option
           Files: File list }
 
         static member Decoder : Decode.Decoder<Sdk> =
             Decode.object
                 (fun get ->
-                    { Version = match get.Optional.Field "version" Decode.string with
+                    { Version = match get.Optional.Field "version" Decode.version with
                                 | Some v -> v
-                                | None -> get.Required.Field "version-sdk" Decode.string
+                                | None -> get.Required.Field "version-sdk" Decode.version
                       VersionDisplay = get.Optional.Field "version-display" Decode.string
                       VsVersion = get.Optional.Field "vs-version" Decode.string
                       CsharpLanguage = get.Optional.Field "csharp-language" Decode.string
@@ -82,16 +93,16 @@ module Data =
 
     type AspnetcoreRuntime =
         { Version: Version
-          VersionDisplay: Version option
+          VersionDisplay: DisplayVersion option
           VersionAspnetcoremodule: Version list option
           Files: File list }
 
         static member Decoder : Decode.Decoder<AspnetcoreRuntime> =
             Decode.object
                 (fun get ->
-                    { Version = get.Required.Field "version" Decode.string
+                    { Version = get.Required.Field "version" Decode.version
                       VersionDisplay = get.Optional.Field "version-display" Decode.string
-                      VersionAspnetcoremodule = get.Optional.Field "version-aspnetcoremodule" (Decode.list Decode.string)
+                      VersionAspnetcoremodule = get.Optional.Field "version-aspnetcoremodule" (Decode.list Decode.version)
                       Files = get.Required.Field "files" (Decode.list File.Decoder) })
 
     type Symbols =
@@ -101,12 +112,12 @@ module Data =
         static member Decoder : Decode.Decoder<Symbols> =
             Decode.object
                 (fun get ->
-                    { Version = get.Required.Field "version" Decode.string
+                    { Version = get.Required.Field "version" Decode.version
                       Files = get.Required.Field "files" (Decode.list File.Decoder) })
 
     type Release = 
         { ReleaseDate: DateTime
-          ReleaseVersion: Version option
+          ReleaseVersion: Version
           Security: bool
           ReleaseNotes: Url option
           Runtime: Runtime option
@@ -118,7 +129,7 @@ module Data =
             Decode.object
                 (fun get -> 
                     { ReleaseDate = get.Required.Field "release-date" Decode.datetime
-                      ReleaseVersion = get.Optional.Field "release-version" Decode.string
+                      ReleaseVersion = get.Required.Field "release-version" Decode.version
                       Security = get.Required.Field "security" Decode.bool
                       ReleaseNotes = get.Optional.Field "release-notes" Decode.string
                       Runtime = get.Optional.Field "runtime" Runtime.Decoder
@@ -138,8 +149,8 @@ module Data =
         static member Decoder : Decode.Decoder<Channel> =
             Decode.object
                 (fun get ->
-                    { ChannelVersion = get.Required.Field "channel-version" Decode.string
-                      LatestRelease = get.Required.Field "latest-release" Decode.string
+                    { ChannelVersion = get.Required.Field "channel-version" Decode.version
+                      LatestRelease = get.Required.Field "latest-release" Decode.version
                       LatestReleaseDate = get.Required.Field "latest-release-date" Decode.datetime
                       SupportPhase = get.Required.Field "support-phase" Decode.string
                       EolDate = getOptionalDate get "eol-date"
