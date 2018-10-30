@@ -3,13 +3,11 @@ namespace VersionsOfDotNet
 open System
 
 type Version =
-    { Major: int
-      Minor: int
-      Patch: int
+    { Numbers: int list
       Preview: string option }
 
     override v.ToString() =
-        let s = sprintf "%i.%i.%i" v.Major v.Minor v.Patch
+        let s = v.Numbers |> List.map string |> List.reduce (sprintf "%s.%s")
         match v.Preview with
         | Some preview -> sprintf "%s-%s" s preview
         | None -> s
@@ -22,24 +20,31 @@ module Version =
             | _ -> None
 
     module private String =
-        let split (sep: char) (s: string) = s.Split(sep)
+        let split (sep: char) (s: string) = s.Split(sep) |> Array.toList
         let trim (s: string) = s.Trim()
         let toLowerInvariant (s: string) = s.ToLowerInvariant()
 
+    module private Option =
+        let mapList optionList = 
+            if optionList |> List.forall Option.isSome
+            then optionList |> List.map Option.get |> Some
+            else None
+
     let parse (s: string) =
-        let parts = s |> String.trim |> String.toLowerInvariant |> String.split '.'
-        if parts.Length >= 3 then
-            let major = Int.parse parts.[0]
-            let minor = Int.parse parts.[1]
-            let patch, preview =
-                match parts.[2..] |> String.concat "." |> String.split '-' |> Array.toList with 
-                | patch::[] -> Int.parse patch, None
-                | patch::preview -> Int.parse patch, Some (preview |> String.concat "-")
-                | _ -> None, None
-            match major, minor, patch with
-            | Some maj, Some min, Some p -> 
-                Some { Major = maj; Minor = min; Patch = p; Preview = preview }
-            | _ -> None
-        else None
+        match s |> String.trim |> String.toLowerInvariant |> String.split '-' with
+        | [ ] | [ "" ] -> None
+        | version::preview ->
+            version 
+            |> String.split '.'
+            |> List.filter (String.IsNullOrEmpty >> not)
+            |> List.map Int.parse 
+            |> Option.mapList
+            |> Option.map (fun numbers -> 
+                                { Numbers = numbers
+                                  Preview = if preview.IsEmpty then None 
+                                            else Some (preview |> String.concat "-") })
+
+    let displayedAs display (version: Version) =
+        string version = display
 
     let (|Version|_|) input = parse input
