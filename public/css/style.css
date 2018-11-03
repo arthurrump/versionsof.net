@@ -371,7 +371,18 @@ nav a.active {
 
 #search-suggestions li {
     padding: 0.5em 1em;
-    border-bottom: 1px solid #e3e3e3
+    border-bottom: 1px solid #e3e3e3;
+    cursor: pointer;
+}
+
+#search-suggestions li.selected {
+    background-color: #b9aaed;
+}
+
+#search-suggestions li.invalid {
+    color: #a0a0a0;
+    background-color: #fff;
+    cursor: default;
 }
 
 #search-suggestions li:last-child {

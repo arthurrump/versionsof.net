@@ -4,6 +4,8 @@ open System
 open Fable.Helpers.React
 open Fable.Helpers.React.Props
 open Version
+open Fable.Import.React
+open Elmish.React
 
 module Search =
     type SearchSuggestion =
@@ -14,11 +16,15 @@ module Search =
     type Model =
         { InFocus: bool
           Query: string
-          Suggestions: SearchSuggestion list }
+          Suggestions: SearchSuggestion list
+          SelectedSuggestion: SearchSuggestion
+          Filter: string option }
 
     type Msg =
         | FocusChanged of bool
         | QueryChanged of string
+        | SelectionChanged of SearchSuggestion
+        | FilterSet of SearchSuggestion
 
     type QueryPrefix =
         | Release
@@ -69,11 +75,11 @@ module Search =
             let pretext, label = prefixToLabel pf
             [ sug (sprintf "%s x.x.x" pretext) label false ]
         | Prefix (pf, Version v) ->
-            let _, label = prefixToLabel pf
-            [ sug (string v) label true ]
+            let text, label = prefixToLabel pf
+            [ sug (sprintf "%s %O" text v) label true ]
         | Prefix (pf, text) ->
-            let _, label = prefixToLabel pf
-            [ sug text (sprintf "%s - Invalid version" label) false ]
+            let pftext, label = prefixToLabel pf
+            [ sug (sprintf "%s %s" pftext text) (sprintf "%s - Invalid version" label) false ]
         | Version v ->
             [ sug (string v) "" true ] @
             [ for pf in QueryPrefix.all -> 
@@ -90,17 +96,53 @@ module Search =
     let init () = 
         { InFocus = false
           Query = ""
-          Suggestions = suggestionsForQuery "" }
+          Suggestions = suggestionsForQuery ""
+          SelectedSuggestion = (suggestionsForQuery "").Head
+          Filter = None }
 
     let update msg model = 
         match msg with
         | FocusChanged focus ->
-            { model with InFocus = focus }
+            { model with InFocus = focus
+                         SelectedSuggestion = if focus then model.SelectedSuggestion else model.Suggestions.Head }
         | QueryChanged query ->
-            { model with Query = query; Suggestions = suggestionsForQuery query }
+            let sug = suggestionsForQuery query
+            { model with Query = query; Suggestions = sug; SelectedSuggestion = sug.Head }
+        | SelectionChanged selected ->
+            { model with SelectedSuggestion = selected }
+        | FilterSet sug ->
+            { model with Filter = Some sug.Text; Query = sug.Text; InFocus = false }
 
-    let sugLi sug =
-        li [ TabIndex 0.0 ] 
+    let ClassL l = Class (l |> String.concat " ")
+
+    let selectedIndex model = 
+        model.Suggestions |> List.findIndex (fun sug -> sug = model.SelectedSuggestion)
+
+    let handleSearchKeyDown model dispatch (event: KeyboardEvent) =
+        match event.key with
+        | "ArrowDown" | "Down" ->
+            let index = selectedIndex model
+            let newIndex = min (index + 1) ((model.Suggestions |> List.length) - 1)
+            let newSelected = model.Suggestions |> List.item newIndex
+            dispatch (SelectionChanged newSelected)
+            event.preventDefault()
+        | "ArrowUp" | "Up" ->
+            let index = selectedIndex model
+            let newIndex = max (index - 1) 0
+            let newSelected = model.Suggestions |> List.item newIndex
+            dispatch (SelectionChanged newSelected)
+            event.preventDefault()
+        | "Escape" ->
+            dispatch (FocusChanged false)
+        | "Enter" ->
+            dispatch (FilterSet model.SelectedSuggestion)
+        | _ -> ()
+
+    let sugLi dispatch selected sug =
+        li [ ClassL [ if not sug.Valid then yield "invalid"
+                      if selected = sug then yield "selected" ]
+             OnMouseEnter (fun _ -> dispatch (SelectionChanged sug))
+             OnClick (fun _ -> dispatch (FilterSet sug)) ] 
            [ yield str sug.Text
              if not (String.IsNullOrWhiteSpace(sug.Label)) 
                 then yield span [ Class "label" ] [ str sug.Label ] ]
@@ -108,12 +150,13 @@ module Search =
     let view model dispatch =
         div [ Class "input-wrapper" 
               OnFocus (fun _ -> dispatch (FocusChanged true))
-              OnBlur (fun _ -> dispatch (FocusChanged false)) ]
+              OnBlur (fun _ -> dispatch (FocusChanged false))
+              OnKeyDown (handleSearchKeyDown model dispatch) ]
             [ yield input [ Placeholder "Find a version..."
                             Props.Type "search"
                             OnChange (fun e -> dispatch (QueryChanged e.Value))
-                            Value model.Query
-                            Class (if model.InFocus then "focus" else "") ]
+                            Helpers.valueOrDefault model.Query
+                            ClassL [ if model.InFocus then yield "focus" ] ]
               if model.InFocus then 
                 yield div [ Id "search-suggestions" ]
-                          [ ul [ ] (model.Suggestions |> List.map sugLi) ] ]
+                          [ ul [ ] (model.Suggestions |> List.map (sugLi dispatch model.SelectedSuggestion)) ] ]
