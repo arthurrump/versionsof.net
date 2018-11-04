@@ -135,14 +135,18 @@ module Search =
         | "Escape" ->
             dispatch (FocusChanged false)
         | "Enter" ->
-            dispatch (FilterSet model.SelectedSuggestion)
+            if model.SelectedSuggestion.Valid 
+            then dispatch (FilterSet model.SelectedSuggestion)
         | _ -> ()
 
     let sugLi dispatch selected sug =
         li [ ClassL [ if not sug.Valid then yield "invalid"
-                      if selected = sug then yield "selected" ]
+                      if sug = selected then yield "selected" ]
+             TabIndex -1.0 // Focusable, but not in tab sequence
              OnMouseEnter (fun _ -> dispatch (SelectionChanged sug))
-             OnClick (fun _ -> dispatch (FilterSet sug)) ] 
+             Role "option"
+             HTMLAttr.Custom ("aria-selected", (sug = selected))
+             OnClick (fun _ -> if sug.Valid then dispatch (FilterSet sug)) ] 
            [ yield str sug.Text
              if not (String.IsNullOrWhiteSpace(sug.Label)) 
                 then yield span [ Class "label" ] [ str sug.Label ] ]
@@ -156,7 +160,12 @@ module Search =
                             Props.Type "search"
                             OnChange (fun e -> dispatch (QueryChanged e.Value))
                             Helpers.valueOrDefault model.Query
+                            SpellCheck false
+                            AutoCorrect "off"
+                            AutoComplete "off"
+                            AutoCapitalize "off"
                             ClassL [ if model.InFocus then yield "focus" ] ]
               if model.InFocus then 
                 yield div [ Id "search-suggestions" ]
-                          [ ul [ ] (model.Suggestions |> List.map (sugLi dispatch model.SelectedSuggestion)) ] ]
+                          [ ul [ Role "listbox" ] 
+                               (model.Suggestions |> List.map (sugLi dispatch model.SelectedSuggestion)) ] ]
