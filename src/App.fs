@@ -451,7 +451,37 @@ module App =
                   section [ Id "releases"
                             Class "container" ]
                           [ h2 [ ] [ str "Releases" ]
-                            releasesTable dispatch m channels ] ]
+                            releasesTable dispatch m channels ]
+                  section [ Id "faq"
+                            Class "container" ]
+                          [ h2 [ ] [ str "What version do I have?" ]
+                            p [ ] 
+                              [ str "You can check your version of the .NET Core runtimes and SDKs installed on your machine by running the "
+                                code [ ] [ str "dotnet --info" ]
+                                str " command. At the top it will show you what version of the SDK is currently in use and some information about your machine, then it will list all SDKs and runtimes that are installed. You can choose which SDK is used by changing a "
+                                em [ ] [ str "global.json" ]
+                                str " file, as is explained " 
+                                a [ Href "https://docs.microsoft.com/en-us/dotnet/core/tools/global-json" ] [ str "here in the documentation" ] 
+                                str ". You can change the runtime that is used for any application by changing the "
+                                code [ ] [ str "TargetFramework" ]
+                                str " in the "
+                                em [ ] [ str ".(cs|fs|vb)proj" ]
+                                str " file." ] ]
+                  footer [ Class "container" ]
+                         [ //hr [ ]
+                           span [ ] [ str "© Arthur Rump, Licensed under the "
+                                      a [ Href "https://github.com/arthurrump/versionsof.net/blob/master/LICENSE" ]
+                                        [ str "BSD 2-Clause License" ]
+                                      br [ ]
+                                      str "Built with "
+                                      a [ Href "https://fsharp.org" ] [ str "F#" ]
+                                      str ", "
+                                      a [ Href "http://fable.io" ] [ str "Fable" ]
+                                      str " and "
+                                      a [ Href "https://elmish.github.io" ] [ str "Elmish" ]
+                                      str " - Check it out on "
+                                      a [ Href "https://github.com/arthurrump/versionsof.net" ]
+                                        [ str "GitHub" ] ] ] ]
 
     // App
     Program.mkProgram init update view

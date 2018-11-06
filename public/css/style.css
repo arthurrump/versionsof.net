@@ -7,14 +7,12 @@ body {
     width: 100%;
     max-width: 960px;
     margin: 0 auto;
-    padding: 0 20px;
     box-sizing: border-box; 
 }
 
 @media (min-width: 400px) {
     .container {
         width: 85%;
-        padding: 0; 
     }
 }
 
@@ -220,7 +218,6 @@ nav a.active {
     border-spacing: 0px;
     table-layout: auto;
     width: 100%;
-    margin-bottom: 4rem;
 }
 
 #releases td, #releases th {
@@ -316,10 +313,15 @@ nav a.active {
     border-color: #000;
 }
 
+section {
+    padding-bottom: 1.5rem;
+}
+
 #search {
     display: flex;
     flex-flow: row nowrap;
     justify-content: center;
+    padding-bottom: 0;
 }
 
 #search input {
@@ -397,4 +399,23 @@ nav a.active {
     background: #e3e3e3;
     border-radius: 3px;
     margin-left: 0.6rem;
+}
+
+footer hr {
+    border: 1px solid #e3e3e3;
+}
+
+footer {
+    text-align: center;
+    font-size: 0.9rem;
+    color: #727272;
+    padding-bottom: 1.5em;
+}
+
+a {
+    color: #512bd4;
+}
+
+footer a {
+    text-decoration: none;
 }
