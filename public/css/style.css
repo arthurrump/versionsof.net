@@ -373,6 +373,7 @@ nav a.active {
     padding: 0.5em 1em;
     border-bottom: 1px solid #e3e3e3;
     cursor: pointer;
+    min-height: 1.3em;
 }
 
 #search-suggestions li.selected {

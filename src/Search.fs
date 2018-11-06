@@ -1,6 +1,7 @@
 namespace VersionsOfDotNet
 
 open System
+open VersionsOfDotNet
 open Fable.Helpers.React
 open Fable.Helpers.React.Props
 open Version
@@ -8,24 +9,6 @@ open Fable.Import.React
 open Elmish.React
 
 module Search =
-    type SearchSuggestion =
-        { Text: string
-          Label: string
-          Valid: bool }
-
-    type Model =
-        { InFocus: bool
-          Query: string
-          Suggestions: SearchSuggestion list
-          SelectedSuggestion: SearchSuggestion
-          Filter: string option }
-
-    type Msg =
-        | FocusChanged of bool
-        | QueryChanged of string
-        | SelectionChanged of SearchSuggestion
-        | FilterSet of SearchSuggestion
-
     type QueryPrefix =
         | Release
         | Runtime
@@ -35,6 +18,33 @@ module Search =
 
         static member all =
             [ Release; Runtime; Sdk; AspRuntime; AspModule ]
+
+    type Filter =
+        | ShowAll
+        | Generic of Version
+        | WithPrefix of QueryPrefix * Version
+
+    type SuggestionValidity =
+        | Valid of Filter
+        | Invalid
+
+    type SearchSuggestion =
+        { Text: string
+          Label: string
+          Valid: SuggestionValidity }
+
+    type Model =
+        { InFocus: bool
+          Query: string
+          Suggestions: SearchSuggestion list
+          SelectedSuggestion: SearchSuggestion
+          Filter: Filter }
+
+    type Msg =
+        | FocusChanged of bool
+        | QueryChanged of string
+        | SelectionChanged of SearchSuggestion
+        | FilterSet of Filter * query: string
 
     let prefixToLabel qp =
         match qp with
@@ -65,40 +75,41 @@ module Search =
     let sug text label valid = 
         { Text = text; Label = label; Valid = valid }
 
-    let suggestionsForQuery query =
+    let suggestionsForQuery filter query =
         match query with
         | PartialPrefix pfs -> 
             pfs 
             |> List.map (fun pf -> let text, label = prefixToLabel pf
-                                   sug (sprintf "%s x.x.x" text) label false)
+                                   sug (sprintf "%s x.x.x" text) label Invalid)
         | Prefix (pf, "") -> 
             let pretext, label = prefixToLabel pf
-            [ sug (sprintf "%s x.x.x" pretext) label false ]
+            [ sug (sprintf "%s x.x.x" pretext) label Invalid ]
         | Prefix (pf, Version v) ->
             let text, label = prefixToLabel pf
-            [ sug (sprintf "%s %O" text v) label true ]
+            [ sug (sprintf "%s %O" text v) label (Valid (WithPrefix (pf, v))) ]
         | Prefix (pf, text) ->
             let pftext, label = prefixToLabel pf
-            [ sug (sprintf "%s %s" pftext text) (sprintf "%s - Invalid version" label) false ]
+            [ sug (sprintf "%s %s" pftext text) (sprintf "%s - Invalid version" label) Invalid ]
         | Version v ->
-            [ sug (string v) "" true ] @
+            [ sug (string v) "" (Valid (Generic v)) ] @
             [ for pf in QueryPrefix.all -> 
                 let text, label = prefixToLabel pf
-                sug (sprintf "%s %O" text v) label true ]
+                sug (sprintf "%s %O" text v) label (Valid (WithPrefix (pf, v))) ]
         | Empty ->
-            [ sug "x.x.x" "" false ] @
+            (match filter with ShowAll -> [ ] | _ -> [ sug "" "Remove filter" (Valid ShowAll) ]) @
+            [ sug "x.x.x" "" Invalid ] @
             [ for pf in QueryPrefix.all ->
                 let text, label = prefixToLabel pf
-                sug (sprintf "%s x.x.x" text) label false ]
+                sug (sprintf "%s x.x.x" text) label Invalid ]
         | text ->
-            [ sug text "Invalid query" false ]
+            [ sug text "Invalid query" Invalid ]
 
     let init () = 
         { InFocus = false
           Query = ""
-          Suggestions = suggestionsForQuery ""
-          SelectedSuggestion = (suggestionsForQuery "").Head
-          Filter = None }
+          Suggestions = suggestionsForQuery ShowAll ""
+          SelectedSuggestion = (suggestionsForQuery ShowAll "").Head
+          Filter = ShowAll }
 
     let update msg model = 
         match msg with
@@ -106,12 +117,14 @@ module Search =
             { model with InFocus = focus
                          SelectedSuggestion = if focus then model.SelectedSuggestion else model.Suggestions.Head }
         | QueryChanged query ->
-            let sug = suggestionsForQuery query
+            let sug = suggestionsForQuery model.Filter query
             { model with Query = query; Suggestions = sug; SelectedSuggestion = sug.Head }
         | SelectionChanged selected ->
             { model with SelectedSuggestion = selected }
-        | FilterSet sug ->
-            { model with Filter = Some sug.Text; Query = sug.Text; InFocus = false }
+        | FilterSet (filter, queryText) ->
+            let sugs = suggestionsForQuery filter model.Query
+            { model with Filter = filter; Query = queryText; InFocus = false 
+                         Suggestions = sugs; SelectedSuggestion = sugs.Head }
 
     let ClassL l = Class (l |> String.concat " ")
 
@@ -135,18 +148,23 @@ module Search =
         | "Escape" ->
             dispatch (FocusChanged false)
         | "Enter" ->
-            if model.SelectedSuggestion.Valid 
-            then dispatch (FilterSet model.SelectedSuggestion)
+            match model.SelectedSuggestion.Valid with
+            | Valid filter -> dispatch (FilterSet (filter, model.SelectedSuggestion.Text))
+            | Invalid -> ()
         | _ -> ()
 
     let sugLi dispatch selected sug =
-        li [ ClassL [ if not sug.Valid then yield "invalid"
+        li [ ClassL [ if sug.Valid = Invalid then yield "invalid"
                       if sug = selected then yield "selected" ]
              TabIndex -1.0 // Focusable, but not in tab sequence
-             OnMouseEnter (fun _ -> dispatch (SelectionChanged sug))
+             OnMouseEnter ( match sug.Valid with 
+                            | Valid _ -> fun _ -> dispatch (SelectionChanged sug)
+                            | Invalid -> fun _ -> () )
              Role "option"
              HTMLAttr.Custom ("aria-selected", (sug = selected))
-             OnClick (fun _ -> if sug.Valid then dispatch (FilterSet sug)) ] 
+             OnClick (fun _ -> match sug.Valid with 
+                               | Valid filter -> dispatch (FilterSet (filter, sug.Text)) 
+                               | Invalid -> ()) ] 
            [ yield str sug.Text
              if not (String.IsNullOrWhiteSpace(sug.Label)) 
                 then yield span [ Class "label" ] [ str sug.Label ] ]

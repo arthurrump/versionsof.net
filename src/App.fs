@@ -7,6 +7,7 @@ open Fable.Helpers.React.Props
 open Data
 open Fable.PowerPack
 open System
+open Search
 
 type Loadable<'t> =
     | Unloaded
@@ -319,6 +320,85 @@ module App =
                   if rm.Expanded then yield expandedRelease rm ] @
             if last then [ ] else [ headRow ]
 
+    let showChannels dispatch channels =
+        if channels |> List.isEmpty then
+            [ ]
+        else
+            [ for c in channels ->
+                  [ yield channelRow dispatch c
+                    if c.Expanded then yield! expandedChannel dispatch c (c = List.last channels) ] ] 
+            |> List.concat
+
+    let releaseFilter filter release =
+        let release = release.Release
+        match filter with
+        | ShowAll -> true
+        | WithPrefix (pf, version) ->
+            match pf with
+            | Release -> release.ReleaseVersion |> Version.matches version
+            | Runtime -> release.Runtime |> Option.exists (fun r -> r.Version |> Version.matches version)
+            | Sdk -> release.Sdk.Version |> Version.matches version
+            | AspRuntime -> release.AspnetcoreRuntime 
+                            |> Option.exists (fun a -> a.Version |> Version.matches version)
+            | AspModule -> 
+                match release.AspnetcoreRuntime with
+                | Some { VersionAspnetcoremodule = Some vs } ->
+                    vs |> List.exists (Version.matches version)
+                | _ -> false
+        | Generic version -> 
+            release.ReleaseVersion |> Version.matches version ||
+            release.Sdk.Version |> Version.matches version ||
+            release.Runtime |> Option.exists (fun r -> r.Version |> Version.matches version)
+
+    let filterChannels filter dispatch channels =
+        match filter with
+        | ShowAll -> showChannels dispatch channels
+        | filter -> 
+            let filterReleases channelModel =
+                let newInfo = 
+                    channelModel.Info 
+                    |> Loadable.map (fun info -> { info with Releases = List.filter (releaseFilter filter) info.Releases })
+                { channelModel with Info = newInfo }
+
+            let filterChannelModel channelModel = 
+                match channelModel.Info, filter with
+                | _, ShowAll -> true
+                | Loaded info, _ -> not info.Releases.IsEmpty
+                | _, Generic v -> channelModel.Index.ChannelVersion |> Version.mightMatchInChannel v
+                | _, WithPrefix (pf, v) ->
+                    match pf with
+                    | Release | Runtime | Sdk | AspRuntime -> 
+                        channelModel.Index.ChannelVersion |> Version.mightMatchInChannel v
+                    | AspModule -> true
+
+            let filtered =
+                channels
+                |> List.map filterReleases
+                |> List.filter filterChannelModel
+
+            do filtered 
+               |> List.filter (fun c -> c.Info = Unloaded) 
+               |> List.map (fun c -> LoadChannel c.Index.ReleasesJson)
+               |> List.iter dispatch
+
+            showChannels dispatch filtered
+
+    let releasesTable dispatch m channels =
+        let rows = filterChannels m.Search.Filter dispatch channels
+
+        if rows |> List.isEmpty then
+            div [ Class "channel-error column" ] 
+                [ span [ Class "error-symbol" ] 
+                       [ str "×" ]
+                  span [ Class "error-title" ] 
+                       [ str "No releases found." ] ]
+        else 
+            table [ ]       
+                  [ thead [ ]
+                          [ headRow ]
+                    tbody [ ]
+                          rows ]
+
     let view (model:Model) dispatch =
         match model with
         | Unloaded | Loading -> 
@@ -371,14 +451,7 @@ module App =
                   section [ Id "releases"
                             Class "container" ]
                           [ h2 [ ] [ str "Releases" ]
-                            table [ ]       
-                                  [ thead [ ]
-                                          [ headRow ]
-                                    tbody [ ]
-                                          ( [ for c in channels ->
-                                                  [ yield channelRow dispatch c
-                                                    if c.Expanded then yield! expandedChannel dispatch c (c = List.last channels) ] ] 
-                                            |> List.concat ) ] ] ]
+                            releasesTable dispatch m channels ] ]
 
     // App
     Program.mkProgram init update view

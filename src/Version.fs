@@ -36,7 +36,7 @@ module Version =
         | version::preview ->
             version 
             |> String.split '.'
-            |> List.filter (String.IsNullOrEmpty >> not)
+            |> List.filter (not << String.IsNullOrEmpty)
             |> List.map Int.parse 
             |> Option.mapList
             |> Option.map (fun numbers -> 
@@ -46,5 +46,18 @@ module Version =
 
     let displayedAs display (version: Version) =
         string version = display
+
+    let mightMatchInChannel channelVersion version =
+        List.tryHead channelVersion.Numbers = List.tryHead version.Numbers
+
+    let matches versionStart version =
+        versionStart.Numbers.Length <= version.Numbers.Length &&
+        versionStart.Numbers = List.take versionStart.Numbers.Length version.Numbers &&
+        match versionStart.Preview with 
+        | Some p1 -> 
+            match version.Preview with
+            | Some p2 -> p2.StartsWith(p1)
+            | None -> false
+        | None -> true
 
     let (|Version|_|) input = parse input
