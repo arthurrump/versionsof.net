@@ -1,4 +1,4 @@
-image: dotnet:2.1-sdk
+image: microsoft/dotnet:2.1-sdk
 
 pages:
   cache:
