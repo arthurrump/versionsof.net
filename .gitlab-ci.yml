@@ -1,0 +1,19 @@
+image: dotnet:2.1-sdk
+
+pages:
+  cache:
+    paths:
+    - node_modules/
+    
+  script:
+  - curl -sL https://deb.nodesource.com/setup_10.x | bash -
+  - apt-get install -y nodejs
+  - npm install
+  - cd src
+  - dotnet restore
+  - dotnet fable webpack
+  artifacts:
+    paths:
+    - public
+  only:
+  - master
