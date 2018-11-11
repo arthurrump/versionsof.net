@@ -6,6 +6,7 @@ open Fable.Helpers.React
 open Fable.Helpers.React.Props
 open Version
 open Fable.Import.React
+open Fable.Import
 open Elmish.React
 
 module Search =
@@ -123,8 +124,11 @@ module Search =
             { model with SelectedSuggestion = selected }
         | FilterSet (filter, queryText) ->
             let sugs = suggestionsForQuery filter model.Query
-            { model with Filter = filter; Query = queryText; InFocus = false 
+            { model with Filter = filter; Query = queryText
                          Suggestions = sugs; SelectedSuggestion = sugs.Head }
+
+    module private Refs =
+        let mutable input : Browser.HTMLElement = null
 
     let ClassL l = Class (l |> String.concat " ")
 
@@ -149,7 +153,9 @@ module Search =
             dispatch (FocusChanged false)
         | "Enter" ->
             match model.SelectedSuggestion.Valid with
-            | Valid filter -> dispatch (FilterSet (filter, model.SelectedSuggestion.Text))
+            | Valid filter -> 
+                if Refs.input <> null then Refs.input.blur()
+                dispatch (FilterSet (filter, model.SelectedSuggestion.Text))
             | Invalid -> ()
         | _ -> ()
 
@@ -182,6 +188,7 @@ module Search =
                             AutoCorrect "off"
                             AutoComplete "off"
                             AutoCapitalize "off"
+                            Props.Ref (fun elem -> Refs.input <- elem :?> Browser.HTMLElement)
                             ClassL [ if model.InFocus then yield "focus" ] ]
               if model.InFocus then 
                 yield div [ Id "search-suggestions" ]
