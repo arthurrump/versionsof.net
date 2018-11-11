@@ -469,7 +469,10 @@ module App =
                                 str " file." ] ]
                   footer [ Class "container" ]
                          [ //hr [ ]
-                           span [ ] [ str "© Arthur Rump, Licensed under the "
+                           span [ ] [ str "© "
+                                      a [ Href "https://arthurrump.com" ]
+                                        [ str "Arthur Rump" ]
+                                      str ", Licensed under the "
                                       a [ Href "https://github.com/arthurrump/versionsof.net/blob/master/LICENSE" ]
                                         [ str "BSD 2-Clause License" ]
                                       br [ ]
