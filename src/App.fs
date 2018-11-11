@@ -226,7 +226,7 @@ module App =
                       else ExpandChannel i.ReleasesJson)
         tr [ OnClick toggleExpand ]
            [ td [ Class "expand-button"
-                  ColSpan 2.0 ] 
+                  ColSpan 2 ] 
                 [ (if c.Expanded then chevronDown else chevronRight) [ ] ]
              td [ ] [ str i.ChannelVersion ]
              td [ ] [ str i.LatestRelease ]
@@ -260,7 +260,7 @@ module App =
            [ td [ Class "hide-border" ] [ ]
              td [ Class "hide-border" ] [ ]
              td [ Class "hide-border"
-                  ColSpan 5.0 ]
+                  ColSpan 5 ]
                 [ ul [ Class "expanded-release" ]
                       [ if fullRuntimeVersion r.Runtime then 
                             yield lif "Runtime version %O" r.Runtime.Value.Version
@@ -284,12 +284,12 @@ module App =
         match c.Info with
         | Unloaded | Loading -> 
             [ tr [ ] 
-                 [ td [ ColSpan 7.0 ] 
+                 [ td [ ColSpan 7 ] 
                       [ div [ Class "expanded-loading" ]
                             [ div [ Class "loading" ] [ ] ] ] ] ]
         | Error ex -> 
             [ tr [ ] 
-                 [ td [ ColSpan 7.0 ] 
+                 [ td [ ColSpan 7 ] 
                       [ div [ Class "channel-error column" ] 
                             ( errorView ex (fun _ -> dispatch (LoadChannel c.Index.ReleasesJson)) ) ] ] ]
         | Loaded info -> 

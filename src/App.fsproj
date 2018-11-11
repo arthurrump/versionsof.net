@@ -10,10 +10,10 @@
     <Compile Include="App.fs" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Fable.Core" Version="2.0.0" />
-    <PackageReference Include="Fable.React" Version="4.0.1" />
+    <PackageReference Include="Fable.Core" Version="2.0.1" />
+    <PackageReference Include="Fable.React" Version="4.1.3" />
     <PackageReference Include="Fable.Elmish.React" Version="2.0.0" />
-    <PackageReference Include="Thoth.Json" Version="2.2.0" />
-    <DotNetCliToolReference Include="dotnet-fable" Version="2.0.4" />
+    <PackageReference Include="Thoth.Json" Version="2.5.0" />
+    <DotNetCliToolReference Include="dotnet-fable" Version="2.0.9" />
   </ItemGroup>
 </Project>

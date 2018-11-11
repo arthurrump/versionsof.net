@@ -156,7 +156,7 @@ module Search =
     let sugLi dispatch selected sug =
         li [ ClassL [ if sug.Valid = Invalid then yield "invalid"
                       if sug = selected then yield "selected" ]
-             TabIndex -1.0 // Focusable, but not in tab sequence
+             TabIndex -1 // Focusable, but not in tab sequence
              OnMouseEnter ( match sug.Valid with 
                             | Valid _ -> fun _ -> dispatch (SelectionChanged sug)
                             | Invalid -> fun _ -> () )
