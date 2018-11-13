@@ -9,7 +9,7 @@ open Fable.PowerPack.PromiseImpl
 
 [<RequireQualifiedAccess>]
 module Fetch =
-    let [<Literal>] ReleasesIndexUrl = "https://raw.githubusercontent.com/arthurrump/dotnet-core/new-json-fixes/release-notes/releases-index.json"
+    let [<Literal>] ReleasesIndexUrl = "https://raw.githubusercontent.com/arthurrump/dotnet-core/new-json-fixes-master-pulled/release-notes/releases-index.json"
                                      //"https://raw.githubusercontent.com/dotnet/core/master/release-notes/releases-index.json"
 
     let index () =
@@ -24,7 +24,7 @@ module Fetch =
 
     let channel (githubUrl: Url) =
         promise {
-            let url = githubUrl.Replace("github.com/dotnet/core/blob/master", "raw.githubusercontent.com/arthurrump/dotnet-core/new-json-fixes")
+            let url = githubUrl.Replace("github.com/dotnet/core/blob/master", "raw.githubusercontent.com/arthurrump/dotnet-core/new-json-fixes-master-pulled")
                                       //"github.com/dotnet/core/blob", "raw.githubusercontent.com/dotnet/core"
             let! response = fetch url []
             let! json = response.text()
