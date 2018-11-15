@@ -1,8 +1,8 @@
 namespace VersionsOfDotNet
 
-open Thoth.Json
 open System
 open VersionsOfDotNet // To get our Version type, instead of the one in System
+open Thoth.Json
 
 module Data =
     type Url = string
@@ -15,8 +15,8 @@ module Data =
                          | Ok s ->
                              match Version.parse s with
                              | Some v -> Ok v
-                             | None -> (path, Decode.BadPrimitive("a version", value)) |> Error
-                         | Error v -> Error v)
+                             | None -> (path, Decode.BadPrimitive("a version", value)) |> Result.Error
+                         | Result.Error v -> Result.Error v)
 
     let private getOptionalDate (get: Decode.IGetters) jsonName =
         get.Required.Field jsonName Decode.string

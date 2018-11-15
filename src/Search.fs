@@ -8,6 +8,7 @@ open Version
 open Fable.Import.React
 open Fable.Import
 open Elmish.React
+open Elmish
 
 module Search =
     type QueryPrefix =
@@ -34,7 +35,7 @@ module Search =
           Label: string
           Valid: SuggestionValidity }
 
-    type Model =
+    type State =
         { InFocus: bool
           Query: string
           Suggestions: SearchSuggestion list
@@ -110,22 +111,23 @@ module Search =
           Query = ""
           Suggestions = suggestionsForQuery ShowAll ""
           SelectedSuggestion = (suggestionsForQuery ShowAll "").Head
-          Filter = ShowAll }
+          Filter = ShowAll }, Cmd.none
 
     let update msg model = 
         match msg with
         | FocusChanged focus ->
             { model with InFocus = focus
-                         SelectedSuggestion = if focus then model.SelectedSuggestion else model.Suggestions.Head }
+                         SelectedSuggestion = if focus then model.SelectedSuggestion else model.Suggestions.Head },
+            Cmd.none
         | QueryChanged query ->
             let sug = suggestionsForQuery model.Filter query
-            { model with Query = query; Suggestions = sug; SelectedSuggestion = sug.Head }
+            { model with Query = query; Suggestions = sug; SelectedSuggestion = sug.Head }, Cmd.none
         | SelectionChanged selected ->
-            { model with SelectedSuggestion = selected }
+            { model with SelectedSuggestion = selected }, Cmd.none
         | FilterSet (filter, queryText) ->
             let sugs = suggestionsForQuery filter model.Query
             { model with Filter = filter; Query = queryText
-                         Suggestions = sugs; SelectedSuggestion = sugs.Head }
+                         Suggestions = sugs; SelectedSuggestion = sugs.Head }, Cmd.none
 
     module private Refs =
         let mutable input : Browser.HTMLElement = null

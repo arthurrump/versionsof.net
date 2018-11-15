@@ -3,10 +3,14 @@
     <TargetFramework>netstandard2.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="Helpers.fs" />
     <Compile Include="Version.fs" />
     <Compile Include="Data.fs" />
     <Compile Include="Fetch.fs" />
     <Compile Include="Search.fs" />
+    <Compile Include="Release.fs" />
+    <Compile Include="Channel.fs" />
+    <Compile Include="ChannelsTable.fs" />
     <Compile Include="App.fs" />
   </ItemGroup>
   <ItemGroup>

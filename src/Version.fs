@@ -2,6 +2,7 @@ namespace VersionsOfDotNet
 
 open System
 
+[<CustomComparison; StructuralEquality>]
 type Version =
     { Numbers: int list
       Preview: string option }
@@ -12,24 +13,23 @@ type Version =
         | Some preview -> sprintf "%s-%s" s preview
         | None -> s
 
+    member this.CompareTo(other) =
+        match compare this.Numbers other.Numbers with
+        | 0 -> 
+            match this.Preview, other.Preview with
+            | None, None -> 0
+            | Some p1, Some p2 -> compare p1 p2
+            | Some _, None -> -1
+            | None, Some _ -> 1
+        | c -> c
+
+    interface IComparable with
+        member this.CompareTo(other: obj) =
+            match other with
+            | :? Version as v -> this.CompareTo(v)
+            | _ -> invalidArg "other" "cannot compare values of different types"
+
 module Version =
-    module private Int =
-        let parse i = 
-            match Int32.TryParse i with
-            | (true, r) -> Some r
-            | _ -> None
-
-    module private String =
-        let split (sep: char) (s: string) = s.Split(sep) |> Array.toList
-        let trim (s: string) = s.Trim()
-        let toLowerInvariant (s: string) = s.ToLowerInvariant()
-
-    module private Option =
-        let mapList optionList = 
-            if optionList |> List.forall Option.isSome
-            then optionList |> List.map Option.get |> Some
-            else None
-
     let parse (s: string) =
         match s |> String.trim |> String.toLowerInvariant |> String.split '-' with
         | [ ] | [ "" ] -> None

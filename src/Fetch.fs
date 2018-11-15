@@ -19,7 +19,7 @@ module Fetch =
             let decoder = Decode.object (fun get -> get.Required.Field "releases-index" (Decode.list IndexEntry.Decoder))
             match Decode.fromString decoder json with
             | Ok res -> return res
-            | Error e -> return failwith e
+            | Result.Error e -> return failwith e
         }
 
     let channel (githubUrl: Url) =
@@ -29,6 +29,6 @@ module Fetch =
             let! response = fetch url []
             let! json = response.text()
             match Decode.fromString Channel.Decoder json with
-            | Ok res -> return githubUrl, res
-            | Error e -> return failwith e
+            | Ok res -> return res
+            | Result.Error e -> return failwith e
         }
