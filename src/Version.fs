@@ -2,6 +2,8 @@ namespace VersionsOfDotNet
 
 open System
 
+#nowarn "342" // Don't warn about implementing Equals
+
 [<CustomComparison; StructuralEquality>]
 type Version =
     { Numbers: int list
