@@ -22,6 +22,9 @@ module Loadable =
         | Unloaded -> Unloaded | Loading -> Loading | Error e -> Error e
         | Loaded t -> Loaded (f t)
 
+    let unzip x =
+        map fst x, map snd x
+
 [<RequireQualifiedAccess>]
 module Int =
     let parse i = 

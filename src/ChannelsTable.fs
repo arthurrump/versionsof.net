@@ -5,6 +5,7 @@ open Elmish
 open Search
 open Fable.Helpers.React
 open Fable.Helpers.React.Props
+open System
 
 module ChannelsTable =
     type State = 
@@ -16,7 +17,7 @@ module ChannelsTable =
         | Filter of Search.Filter
         | Fetched of IndexEntry list
         | FetchError of exn
-        | ChannelMsg of Channel.State * Channel.Msg
+        | ChannelMsg of Guid * Channel.Msg
 
     let channelMsg state msg = ChannelMsg (state, msg)
 
@@ -33,29 +34,36 @@ module ChannelsTable =
         | Load ->
             { state with Channels = Loading }, fetchIndexCmd
         | Filter filter ->
+            printfn "Channels filter: %A" filter
             { state with Filter = filter }, Cmd.none
         | Fetched index ->
             let channels =
                 index 
                 |> List.map Channel.init
             let states = channels |> List.map fst
+            let latestChannel =
+                states
+                |> List.filter (fun c -> c.Index.SupportPhase <> "preview")
+                |> List.maxBy (fun c -> c.Index.LatestRelease)
             let cmds =
                 channels
-                |> List.map (fun (state, cmd) -> Cmd.map (channelMsg state) cmd)
+                |> List.map (fun (state, cmd) -> Cmd.map (channelMsg state.Guid) cmd)
+                |> fun list -> Cmd.ofMsg (channelMsg latestChannel.Guid Channel.Load) :: list
                 |> Cmd.batch
             { state with Channels = Loaded states }, cmds
         | FetchError ex ->
             { state with Channels = Error ex }, Cmd.none
-        | ChannelMsg (channelState, msg) ->
-            let newState, cmd = Channel.update msg channelState
-            let newChannels channels =
+        | ChannelMsg (guid, msg) ->
+            let updateChannel (channels: Channel.State list) =
                 channels 
                 |> List.map (fun channel ->
-                                 if channel = channelState
-                                 then newState else channel)
-            let loadableChannels = state.Channels |> Loadable.map newChannels
+                                 if channel.Guid = guid
+                                 then Channel.update msg channel 
+                                 else channel, Cmd.none)
+                |> List.unzip
+            let loadableChannels, cmds = state.Channels |> Loadable.map updateChannel |> Loadable.unzip
             { state with Channels = loadableChannels },
-            Cmd.map (channelMsg newState) cmd
+            Cmd.map (channelMsg guid) (match cmds with Loaded cmds -> Cmd.batch cmds | _ -> Cmd.none)
 
     let view state dispatch =
         match state.Channels with
@@ -117,7 +125,7 @@ module ChannelsTable =
 
                     do filtered 
                        |> List.filter (fun c -> c.Info = Unloaded) 
-                       |> List.map (fun c -> ChannelMsg (c, Channel.Load))
+                       |> List.map (fun c -> ChannelMsg (c.Guid, Channel.Load))
                        |> List.iter dispatch
 
                     filtered
@@ -135,5 +143,5 @@ module ChannelsTable =
                       [ thead [ ]
                               [ Channel.headRow ]
                         tbody [ ]
-                              [ for c in channels do
-                                    yield! Channel.view (c = List.last channels) c (channelMsg c >> dispatch) ] ]
+                              [ for c in filtered do
+                                    yield! Channel.view (c = List.last filtered) c (channelMsg c.Guid >> dispatch) ] ]

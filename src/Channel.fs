@@ -4,6 +4,7 @@ open Data
 open Elmish
 open Fable.Helpers.React
 open Fable.Helpers.React.Props
+open System
 
 module Channel =
     type Info =
@@ -13,7 +14,8 @@ module Channel =
     type State =
         { Index: IndexEntry
           Info: Loadable<Info>
-          Expanded: bool }
+          Expanded: bool
+          Guid: Guid }
 
     type Msg =
         | Load
@@ -21,7 +23,7 @@ module Channel =
         | FetchError of exn
         | Expand
         | Collapse
-        | ReleaseMsg of Release.State * Release.Msg
+        | ReleaseMsg of Guid * Release.Msg
 
     let releaseMsg state msg = ReleaseMsg (state, msg)
 
@@ -31,7 +33,8 @@ module Channel =
     let init index = 
         { Index = index
           Info = Unloaded
-          Expanded = false }, Cmd.none
+          Expanded = false
+          Guid = Guid.NewGuid() }, Cmd.none
 
     let update msg state =
         match msg with
@@ -46,7 +49,7 @@ module Channel =
                   Releases = releases |> List.map fst }
             let cmds = 
                 releases
-                |> List.map (fun (state, cmd) -> Cmd.map (releaseMsg state) cmd)
+                |> List.map (fun (state, cmd) -> Cmd.map (releaseMsg state.Guid) cmd)
                 |> Cmd.batch
             { state with Info = Loaded info }, cmds
         | FetchError exn ->
@@ -58,17 +61,19 @@ module Channel =
             else Cmd.none
         | Collapse ->
             { state with Expanded = false }, Cmd.none
-        | ReleaseMsg (relState, msg) ->
-            let newState, cmd = Release.update msg relState
+        | ReleaseMsg (guid, msg) ->
             let updateReleaseState info =
-                let updatedReleases =
+                let updatedReleases, cmds =
                     info.Releases 
-                    |> List.map (fun rel -> if rel = relState 
-                                            then newState else rel)
-                { info with Releases = updatedReleases }
+                    |> List.map (fun rel -> if rel.Guid = guid 
+                                            then Release.update msg rel 
+                                            else rel, Cmd.none)
+                    |> List.unzip
+                { info with Releases = updatedReleases }, cmds |> Cmd.batch
+            let info, cmd = state.Info |> Loadable.map updateReleaseState |> Loadable.unzip
             { state with 
-                Info = state.Info |> Loadable.map updateReleaseState },
-            Cmd.map (releaseMsg newState) cmd
+                Info = info },
+            match cmd with Loaded cmd -> Cmd.map (releaseMsg guid) cmd | _ -> Cmd.none
 
     let headRow = 
         tr [ ]
@@ -143,7 +148,7 @@ module Channel =
                        th [ ] [ str "Sdk" ]
                        th [ ] [ ] ] ] @
                 [ for r in info.Releases do
-                      yield! Release.view r (releaseMsg r >> dispatch) ] @
+                      yield! Release.view r (releaseMsg r.Guid >> dispatch) ] @
                 if last then [ ] else [ headRow ]
         
         [ yield channelRow

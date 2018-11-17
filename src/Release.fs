@@ -4,11 +4,14 @@ open Data
 open Fable.Helpers.React
 open Fable.Helpers.React.Props
 open Elmish
+open Fable.Core
+open System
 
 module Release =
     type State =
         { Release: Release
-          Expanded: bool }
+          Expanded: bool
+          Guid: Guid }
 
     type Msg =
         | Expand
@@ -16,7 +19,8 @@ module Release =
 
     let init rel = 
         { Release = rel 
-          Expanded = false }, Cmd.none
+          Expanded = false
+          Guid = Guid.NewGuid() }, Cmd.none
 
     let update msg state =
         match msg with

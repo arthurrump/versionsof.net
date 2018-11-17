@@ -7,8 +7,7 @@ open Fable.Helpers.React.Props
 open Data
 
 type State = 
-    { LatestRuntime: Loadable<Version>
-      ChannelsTable: ChannelsTable.State 
+    { ChannelsTable: ChannelsTable.State 
       Search: Search.State }
 
 type File =
@@ -28,8 +27,7 @@ module App =
               Cmd.map SearchMsg sCmd ]
             |> Cmd.batch
 
-        { LatestRuntime = Unloaded
-          ChannelsTable = ctState
+        { ChannelsTable = ctState
           Search = sState },
         cmds
 
@@ -41,23 +39,15 @@ module App =
         match msg with
         | ChannelsTableMsg msg ->
             let newState, ctCmd = ChannelsTable.update msg state.ChannelsTable
-            let state, cmd = 
-                match msg with 
-                | ChannelsTable.Fetched entries ->
-                    let latestChannel = 
-                        entries
-                        |> List.filter (fun i -> i.SupportPhase <> "preview")
-                        |> List.maxBy (fun i -> i.LatestRelease)
-                    { state with LatestRuntime = Loaded latestChannel.LatestRelease },
-                    Cmd.ofMsg (ChannelsTable.channelMsg (Channel.init latestChannel |> fst) Channel.Load |> ChannelsTableMsg)
-                | ChannelsTable.Load -> { state with LatestRuntime = Loading }, Cmd.none
-                | ChannelsTable.FetchError ex -> { state with LatestRuntime = Error ex }, Cmd.none
-                | _ -> state, Cmd.none
-            { state with ChannelsTable = newState }, 
-            [ Cmd.map ChannelsTableMsg ctCmd; cmd ] |> Cmd.batch
+            { state with ChannelsTable = newState }, Cmd.map ChannelsTableMsg ctCmd
         | SearchMsg msg -> 
-            let newState, cmd = Search.update msg state.Search
-            { state with Search = newState }, Cmd.map SearchMsg cmd
+            let newState, sCmd = Search.update msg state.Search
+            let cmd = 
+                match msg with
+                | Search.FilterSet (filter, _) -> Cmd.ofMsg (ChannelsTableMsg (ChannelsTable.Filter filter))
+                | _ -> Cmd.none
+            { state with Search = newState }, 
+            [ Cmd.map SearchMsg sCmd; cmd ] |> Cmd.batch
         
     let view state dispatch =
         match state.ChannelsTable.Channels with
@@ -70,6 +60,7 @@ module App =
                       ( View.errorView ex (fun _ -> dispatch (ChannelsTableMsg ChannelsTable.Load)) ) ]
         | Loaded channels ->
             let latestReleaseChannel = channels |> latestNonPreviewChannel
+            let latestRuntime = string latestReleaseChannel.Index.ChannelVersion
             let latestSdk = 
                 latestReleaseChannel.Info 
                 |> Loadable.map (fun i -> i.Releases 
@@ -89,7 +80,7 @@ module App =
                          [ div [ Class "container row" ]
                                [ div [ Class "cell" ]
                                      [ span [ Class "version" ] 
-                                            [ str <| match state.LatestRuntime with Loaded v -> string v | _ -> "" ]
+                                            [ str latestRuntime ]
                                        span [ Class "label" ] 
                                             [ str "Latest runtime" ] ]
                                  div [ Class "cell" ]
@@ -99,7 +90,7 @@ module App =
                                          | Error ex -> 
                                              span [ Class "error-symbol"
                                                     Title (sprintf "Click to try again. Error details: %s" ex.Message)
-                                                    OnClick (fun _ -> dispatch (ChannelsTableMsg <| ChannelsTable.channelMsg latestReleaseChannel Channel.Load)) ] 
+                                                    OnClick (fun _ -> dispatch (ChannelsTableMsg <| ChannelsTable.channelMsg latestReleaseChannel.Guid Channel.Load)) ] 
                                                   [ str "×" ] )
                                        span [ Class "label" ]
                                             [ str "Latest SDK" ] ] ] ]
