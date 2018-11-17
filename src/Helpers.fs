@@ -64,5 +64,8 @@ module View =
                    OnClick retryFun ] 
                  [ str "Try again" ]
           span [ Class "error-details" ]
-               [ str (sprintf "Details: %s" ex.Message) ] ]
+               [ str (sprintf "Details: %s" ex.Message) ] 
+          a [ Class "error-issue-link"
+              Href (sprintf "https://github.com/arthurrump/versionsof.net/issues/new?body=Error details: %s" ex.Message) ]
+            [ str "Open an issue" ] ]
                

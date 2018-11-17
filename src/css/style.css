@@ -107,7 +107,7 @@ button:hover {
     }
 }
 
-.error-title, .error-details {
+.error-title, .error-details, .error-issue-link {
     text-align: center;
 }
 
@@ -115,7 +115,7 @@ button:hover {
     margin-top: 1rem;
 }
 
-.error-details {
+.error-details, .error-issue-link {
     font-size: 0.8rem;
 }
 
@@ -418,4 +418,8 @@ a {
 
 footer a {
     text-decoration: none;
+}
+
+.main-error .error-issue-link {
+    color: #fff;
 }
