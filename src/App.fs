@@ -60,7 +60,7 @@ module App =
                       ( View.errorView ex (fun _ -> dispatch (ChannelsTableMsg ChannelsTable.Load)) ) ]
         | Loaded channels ->
             let latestReleaseChannel = channels |> latestNonPreviewChannel
-            let latestRuntime = string latestReleaseChannel.Index.ChannelVersion
+            let latestRuntime = string latestReleaseChannel.Index.LatestRelease
             let latestSdk = 
                 latestReleaseChannel.Info 
                 |> Loadable.map (fun i -> i.Releases 
