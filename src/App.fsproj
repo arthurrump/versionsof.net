@@ -3,6 +3,7 @@
     <TargetFramework>netstandard2.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="MarkdownToJsx.fs" />
     <Compile Include="Helpers.fs" />
     <Compile Include="Version.fs" />
     <Compile Include="Data.fs" />
