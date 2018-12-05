@@ -94,6 +94,10 @@ module Channel =
                 [ span [ Class "status-indicator preview"
                          Title "Preview" ] [ ]
                   span [ ] [ str "Preview" ] ]
+            | "current" -> 
+                [ span [ Class "status-indicator lts" 
+                         Title "Current" ] [ ]
+                  span [ ] [ str "Current" ] ]
             | "lts" -> 
                 [ span [ Class "status-indicator lts"
                          Title "Long Term Support" ] [ ]
