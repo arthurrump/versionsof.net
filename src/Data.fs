@@ -18,6 +18,11 @@ module Data =
                              | None -> (path, Decode.BadPrimitive("a version", value)) |> Result.Error
                          | Result.Error v -> Result.Error v)
 
+        let versionAsList path value =
+            match version path value with
+            | Ok v -> Ok [ v ]
+            | Result.Error e -> Result.Error e
+
     let private getOptionalDate (get: Decode.IGetters) jsonName =
         get.Required.Field jsonName Decode.string
         |> fun s -> if String.IsNullOrWhiteSpace s then (false, DateTime()) else DateTime.TryParse(s)
@@ -102,7 +107,9 @@ module Data =
                 (fun get ->
                     { Version = get.Required.Field "version" Decode.version
                       VersionDisplay = get.Optional.Field "version-display" Decode.string
-                      VersionAspnetcoremodule = get.Optional.Field "version-aspnetcoremodule" (Decode.list Decode.version)
+                      VersionAspnetcoremodule = 
+                        get.Optional.Field "version-aspnetcoremodule" 
+                            (Decode.oneOf [ Decode.list Decode.version; Decode.versionAsList ])
                       Files = get.Required.Field "files" (Decode.list File.Decoder) })
 
     type Symbols =
