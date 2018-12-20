@@ -32,6 +32,8 @@ module Data =
         { ChannelVersion: Version
           LatestRelease: Version
           LatestReleaseDate: DateTime
+          LatestRuntime: Version
+          LatestSdk: Version
           Product: string
           SupportPhase: string
           EolDate: DateTime option
@@ -43,6 +45,8 @@ module Data =
                     { ChannelVersion = get.Required.Field "channel-version" Decode.version
                       LatestRelease = get.Required.Field "latest-release" Decode.version
                       LatestReleaseDate = get.Required.Field "latest-release-date" Decode.datetime
+                      LatestRuntime = get.Required.Field "latest-runtime" Decode.version
+                      LatestSdk = get.Required.Field "latest-sdk" Decode.version
                       Product = get.Required.Field "product" Decode.string
                       SupportPhase = get.Required.Field "support-phase" Decode.string
                       EolDate = getOptionalDate get "eol-date"
@@ -148,6 +152,8 @@ module Data =
         { ChannelVersion: Version
           LatestRelease: Version
           LatestReleaseDate: DateTime
+          LatestRuntime: Version
+          LatestSdk: Version
           SupportPhase: string
           EolDate: DateTime option
           LifecyclePolicy: Url
@@ -159,6 +165,8 @@ module Data =
                     { ChannelVersion = get.Required.Field "channel-version" Decode.version
                       LatestRelease = get.Required.Field "latest-release" Decode.version
                       LatestReleaseDate = get.Required.Field "latest-release-date" Decode.datetime
+                      LatestRuntime = get.Required.Field "latest-runtime" Decode.version
+                      LatestSdk = get.Required.Field "latest-sdk" Decode.version
                       SupportPhase = get.Required.Field "support-phase" Decode.string
                       EolDate = getOptionalDate get "eol-date"
                       LifecyclePolicy = get.Required.Field "lifecycle-policy" Decode.string

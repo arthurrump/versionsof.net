@@ -41,14 +41,9 @@ module ChannelsTable =
                 index 
                 |> List.map Channel.init
             let states = channels |> List.map fst
-            let latestChannel =
-                states
-                |> List.filter (fun c -> c.Index.SupportPhase <> "preview")
-                |> List.maxBy (fun c -> c.Index.LatestRelease)
             let cmds =
                 channels
                 |> List.map (fun (state, cmd) -> Cmd.map (channelMsg state.Guid) cmd)
-                |> fun list -> Cmd.ofMsg (channelMsg latestChannel.Guid Channel.Load) :: list
                 |> Cmd.batch
             { state with Channels = Loaded states }, cmds
         | FetchError ex ->

@@ -60,21 +60,15 @@ module App =
                       ( View.errorView ex (fun _ -> dispatch (ChannelsTableMsg ChannelsTable.Load)) ) ]
         | Loaded channels ->
             let latestReleaseChannel = channels |> latestNonPreviewChannel
-            let latestRuntime = string latestReleaseChannel.Index.LatestRelease
-            let latestSdk = 
-                latestReleaseChannel.Info 
-                |> Loadable.map (fun i -> i.Releases 
-                                          |> List.maxBy (fun r -> r.Release.ReleaseDate)
-                                          |> fun r -> match r.Release.Sdk.VersionDisplay with
-                                                      | Some v -> v
-                                                      | None -> string r.Release.Sdk.Version)
+            let latestRuntime = string latestReleaseChannel.Index.LatestRuntime
+            let latestSdk = string latestReleaseChannel.Index.LatestSdk
+
             div [ ]
                 [ nav [ ]
                       [ div [ Class "container" ]
                             [ h1 [ Id "title" ] [ str "Versions of" ]
                               a [ Href "#core"; Class "active" ] [ str ".NET Core" ]
                               a [ (*Href "#standard"*) Disabled true; Title "Coming soon™"; Style [ Cursor "default"; CSSProp.Color "rgba(255, 255, 255, 0.6)" ] ] [ str ".NET Standard" ]
-                              a [ (*Href "#framework"*) Disabled true; Title "Coming soon™"; Style [ Cursor "default"; CSSProp.Color "rgba(255, 255, 255, 0.6)" ] ] [ str ".NET Framework" ]
                             ] ]
                   header [ ]
                          [ div [ Class "container row" ]
@@ -84,14 +78,8 @@ module App =
                                        span [ Class "label" ] 
                                             [ str "Latest runtime" ] ]
                                  div [ Class "cell" ]
-                                     [ ( match latestSdk with
-                                         | Loaded v -> span [ Class "version" ] [ str v ] 
-                                         | Unloaded | Loading ->  div [ Class "loading" ] [ ]
-                                         | Error ex -> 
-                                             span [ Class "error-symbol"
-                                                    Title (sprintf "Click to try again. Error details: %s" ex.Message)
-                                                    OnClick (fun _ -> dispatch (ChannelsTableMsg <| ChannelsTable.channelMsg latestReleaseChannel.Guid Channel.Load)) ] 
-                                                  [ str "×" ] )
+                                     [ span [ Class "version" ] 
+                                            [ str latestSdk ] 
                                        span [ Class "label" ]
                                             [ str "Latest SDK" ] ] ] ]
                   section [ Id "search"
