@@ -109,7 +109,7 @@ module Data =
                       VersionDisplay = get.Optional.Field "version-display" Decode.string
                       VersionAspnetcoremodule = 
                         get.Optional.Field "version-aspnetcoremodule" 
-                            (Decode.oneOf [ Decode.list Decode.version; Decode.versionAsList ])
+                            (Decode.oneOf [ Decode.list Decode.version; Decode.versionAsList; Decode.nil [] ])
                       Files = get.Required.Field "files" (Decode.list File.Decoder) })
 
     type Symbols =
