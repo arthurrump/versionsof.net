@@ -116,7 +116,7 @@ module App =
                                       str "Built with "
                                       a [ Href "https://fsharp.org" ] [ str "F#" ]
                                       str ", "
-                                      a [ Href "http://fable.io" ] [ str "Fable" ] // DevSkim: ignore DS137138 
+                                      a [ Href "https://fable.io" ] [ str "Fable" ]
                                       str " and "
                                       a [ Href "https://elmish.github.io" ] [ str "Elmish" ]
                                       str " - Check it out on "
