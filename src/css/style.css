@@ -336,6 +336,9 @@ section {
 #search .input-wrapper {
     margin: 1.5em 0 0.5em;
     min-width: 100%;
+    display: flex;
+    flex-flow: column nowrap;
+    align-items: flex-end;
 }
 
 @media (min-width: 550px) {
@@ -355,6 +358,12 @@ section {
     border-bottom: none;
     border-bottom-left-radius: 0;
     border-bottom-right-radius: 0;
+}
+
+#search #remove-filter-link {
+    font-size: 0.8rem;
+    margin-bottom: -0.8rem;
+    cursor: pointer;
 }
 
 #search-suggestions {

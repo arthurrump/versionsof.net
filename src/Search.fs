@@ -172,7 +172,7 @@ module Search =
                             | Invalid -> fun _ -> () )
              Role "option"
              HTMLAttr.Custom ("aria-selected", (sug = selected))
-             OnClick (fun e -> match sug.Valid with 
+             OnClick (fun _ -> match sug.Valid with 
                                | Valid filter -> 
                                    unfocus ()
                                    dispatch (FilterSet (filter, sug.Text)) 
@@ -198,6 +198,11 @@ module Search =
                 if model.InFocus then 
                   yield div [ Id "search-suggestions" ]
                             [ ul [ Role "listbox" ] 
-                                 (model.Suggestions |> List.map (sugLi dispatch model.SelectedSuggestion)) ] ]
+                                 (model.Suggestions |> List.map (sugLi dispatch model.SelectedSuggestion)) ]
+                if model.Filter <> ShowAll then 
+                  yield a [ Role "button"
+                            OnClick <| fun _ -> dispatch (FilterSet (ShowAll, ""))
+                            Id "remove-filter-link" ] 
+                          [ str "Remove filter"] ]
           div [ TabIndex -1 
                 Props.Ref (fun elem -> Refs.unfocusDiv <- elem :?> Browser.HTMLElement) ] [ ] ]
