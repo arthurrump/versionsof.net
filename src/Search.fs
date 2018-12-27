@@ -125,14 +125,16 @@ module Search =
         | SelectionChanged selected ->
             { model with SelectedSuggestion = selected }, Cmd.none
         | FilterSet (filter, queryText) ->
-            let sugs = suggestionsForQuery filter model.Query
+            let sugs = suggestionsForQuery filter queryText
             { model with Filter = filter; Query = queryText
                          Suggestions = sugs; SelectedSuggestion = sugs.Head }, Cmd.none
 
     module private Refs =
-        let mutable input : Browser.HTMLElement = null
+        let mutable unfocusDiv : Browser.HTMLElement = null
 
     let ClassL l = Class (l |> String.concat " ")
+
+    let unfocus _ = if Refs.unfocusDiv <> null then Refs.unfocusDiv.focus ()
 
     let selectedIndex model = 
         model.Suggestions |> List.findIndex (fun sug -> sug = model.SelectedSuggestion)
@@ -152,11 +154,11 @@ module Search =
             dispatch (SelectionChanged newSelected)
             event.preventDefault()
         | "Escape" ->
-            dispatch (FocusChanged false)
+            unfocus ()
         | "Enter" ->
             match model.SelectedSuggestion.Valid with
             | Valid filter -> 
-                if Refs.input <> null then Refs.input.blur()
+                unfocus ()
                 dispatch (FilterSet (filter, model.SelectedSuggestion.Text))
             | Invalid -> ()
         | _ -> ()
@@ -170,29 +172,32 @@ module Search =
                             | Invalid -> fun _ -> () )
              Role "option"
              HTMLAttr.Custom ("aria-selected", (sug = selected))
-             OnClick (fun _ -> match sug.Valid with 
-                               | Valid filter -> dispatch (FilterSet (filter, sug.Text)) 
+             OnClick (fun e -> match sug.Valid with 
+                               | Valid filter -> 
+                                   unfocus ()
+                                   dispatch (FilterSet (filter, sug.Text)) 
                                | Invalid -> ()) ] 
            [ yield str sug.Text
              if not (String.IsNullOrWhiteSpace(sug.Label)) 
                 then yield span [ Class "label" ] [ str sug.Label ] ]
 
-    let view model dispatch =
-        div [ Class "input-wrapper" 
-              OnFocus (fun _ -> dispatch (FocusChanged true))
-              OnBlur (fun _ -> dispatch (FocusChanged false))
-              OnKeyDown (handleSearchKeyDown model dispatch) ]
-            [ yield input [ Placeholder "Find a version..."
-                            Props.Type "search"
-                            OnChange (fun e -> dispatch (QueryChanged e.Value))
-                            Helpers.valueOrDefault model.Query
-                            SpellCheck false
-                            AutoCorrect "off"
-                            AutoComplete "off"
-                            AutoCapitalize "off"
-                            Props.Ref (fun elem -> Refs.input <- elem :?> Browser.HTMLElement)
-                            ClassL [ if model.InFocus then yield "focus" ] ]
-              if model.InFocus then 
-                yield div [ Id "search-suggestions" ]
-                          [ ul [ Role "listbox" ] 
-                               (model.Suggestions |> List.map (sugLi dispatch model.SelectedSuggestion)) ] ]
+    let view model dispatch = 
+        [ div [ Class "input-wrapper" 
+                OnFocus (fun _ -> dispatch (FocusChanged true))
+                OnBlur (fun _ -> dispatch (FocusChanged false))
+                OnKeyDown (handleSearchKeyDown model dispatch) ]
+              [ yield input [ Placeholder "Find a version..."
+                              Props.Type "search"
+                              OnChange (fun e -> dispatch (QueryChanged e.Value))
+                              Helpers.valueOrDefault model.Query
+                              SpellCheck false
+                              AutoCorrect "off"
+                              AutoComplete "off"
+                              AutoCapitalize "off"
+                              ClassL [ if model.InFocus then yield "focus" ] ]
+                if model.InFocus then 
+                  yield div [ Id "search-suggestions" ]
+                            [ ul [ Role "listbox" ] 
+                                 (model.Suggestions |> List.map (sugLi dispatch model.SelectedSuggestion)) ] ]
+          div [ TabIndex -1 
+                Props.Ref (fun elem -> Refs.unfocusDiv <- elem :?> Browser.HTMLElement) ] [ ] ]

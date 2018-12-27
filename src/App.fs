@@ -84,7 +84,7 @@ module App =
                                             [ str "Latest SDK" ] ] ] ]
                   section [ Id "search"
                             Class "container" ]
-                          [ Search.view state.Search (SearchMsg >> dispatch) ]
+                          ( Search.view state.Search (SearchMsg >> dispatch) )
                   section [ Id "releases"
                             Class "container" ]
                           [ h2 [ ] [ str "Releases" ]
