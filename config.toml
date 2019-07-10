@@ -1,0 +1,5 @@
+releases-index-url = "https://dotnetcli.blob.core.windows.net/dotnet/release-metadata/releases-index.json"
+dotnet-twitter = "@dotnet"
+
+title = "Versions of .NET"
+description = ""

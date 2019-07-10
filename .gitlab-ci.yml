@@ -1,17 +1,11 @@
-image: microsoft/dotnet:2.1-sdk
+image: mcr.microsoft.com/dotnet/core/sdk:2.2
 
 pages:
-  cache:
-    paths:
-    - node_modules/
-    
   script:
-  - curl -sL https://deb.nodesource.com/setup_10.x | bash -
-  - apt-get install -y nodejs
-  - npm install
-  - cd src
-  - dotnet restore
-  - dotnet fable webpack
+  - export PATH="$PATH:/root/.dotnet/tools"
+  - dotnet tool install fake-cli -g
+  - rm -rf ./.fake
+  - fake build
   artifacts:
     paths:
     - public
