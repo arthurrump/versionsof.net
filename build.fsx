@@ -12,6 +12,9 @@ nuget NetCoreVersions //"
     #r "netstandard"
 #endif
 
+#load "./helpers.fsx"
+open Helpers
+
 open Fake.Core
 open Fake.IO
 open Fake.IO.Globbing.Operators
@@ -29,72 +32,37 @@ open System
 open System.IO
 open System.Net.Http
 
-type AsyncResultBuilder() =
-    member __.Bind (x, f) = async {
-        let! x = x
-        match x with
-        | Ok x -> return! f x
-        | Error x -> return Error x
-    }
-
-    member __.Bind (x, f : 'a -> Async<Result<'b, 'c>>) = async {
-        let! x = x
-        return! f x
-    }
-
-    member __.Bind (x, f : 'a -> Async<Result<'b, 'c>>) = async {
-        match x with
-        | Ok x -> return! f x
-        | Error x -> return Error x
-    }
-
-    member __.Return x = Ok x |> async.Return
-    
-    member __.ReturnFrom (x : Async<Result<_, _>>) = x
-    // member __.ReturnFrom (x : Result<_, _>) = async.Return x
-    // member __.ReturnFrom (x : Async<_>) = async { let! x = x in return Ok x }
-    
-    member __.Zero () = async.Return (Ok ())
-
-    member this.TryFinally (body, fin) =
-        try this.ReturnFrom (body ())
-        finally fin ()
-
-    member this.Using(disposable:#System.IDisposable, body) =
-        let body' = fun () -> body disposable
-        this.TryFinally(body', fun () -> 
-            match disposable with 
-                | null -> () 
-                | disp -> disp.Dispose())
-
-let asyncResult = AsyncResultBuilder()
-
-let rec allOk xs =
-    match xs with
-    | [] -> Ok []
-    | Ok x :: rest -> Result.map (fun r -> x::r) (allOk rest)
-    | Error x :: _ -> Error x
-
 // Data dowloads
 ////////////////
-let downloadReleases (indexUrl : string) =
+let getJson (url : string) =
+    use http = new HttpClient()
+    http.GetStringAsync url |> Async.AwaitTask
+
+let decodeIndex = Decode.fromString (Decode.list IndexEntry.Decoder)
+let decodeChannel = Decode.fromString Channel.Decoder
+
+let tryGetIndex url =
+    async { let! json = getJson url in return decodeIndex json }
+
+let tryGetChannel url =
+    async { let! json = getJson url in return decodeChannel json }
+
+let tryGetChannels indexUrl =
     asyncResult {
-        use http = new HttpClient()
-        let! indexJson = http.GetStringAsync indexUrl |> Async.AwaitTask
-        let! index = Decode.fromString (Decode.list IndexEntry.Decoder) indexJson 
-        let! releasesJson =
+        let! index = tryGetIndex indexUrl
+        return! 
             index 
-            |> List.map (fun i -> 
-                http.GetStringAsync i.ReleasesJson 
-                |> Async.AwaitTask)
+            |> List.map (fun i -> tryGetChannel i.ReleasesJson)
             |> Async.Parallel
-        let! releases = 
-            releasesJson
-            |> Array.toList
-            |> List.map (Decode.fromString Release.Decoder)
-            |> allOk
-        return releases
+            |> Async.map (List.ofArray >> Result.allOk)
     }
+
+// Site layout and data conversion
+//////////////////////////////////
+type Page =
+    | ChannelsOverview of Channel list
+
+    | ErrorPage of code: string * text: string
 
 // Site generation
 //////////////////
@@ -105,11 +73,6 @@ type Config =
       DotnetTwitter : string
       Title : string
       Description : string }
-
-[<NoComparison>]
-type Page =
-    | Page
-    | ErrorPage of code: string * text: string
 
 let tomlTryGet key (toml : TomlTable) =
     if toml.ContainsKey(key) 
