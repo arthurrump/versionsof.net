@@ -21,11 +21,83 @@ open Fake.StaticGen.Html.ViewEngine
 open Fake.StaticGen.Markdown
 
 open Markdig
+open NetCore.Versions.Data
 open Nett
+open Thoth.Json.Net
 
 open System
 open System.IO
+open System.Net.Http
 
+type AsyncResultBuilder() =
+    member __.Bind (x, f) = async {
+        let! x = x
+        match x with
+        | Ok x -> return! f x
+        | Error x -> return Error x
+    }
+
+    member __.Bind (x, f : 'a -> Async<Result<'b, 'c>>) = async {
+        let! x = x
+        return! f x
+    }
+
+    member __.Bind (x, f : 'a -> Async<Result<'b, 'c>>) = async {
+        match x with
+        | Ok x -> return! f x
+        | Error x -> return Error x
+    }
+
+    member __.Return x = Ok x |> async.Return
+    
+    member __.ReturnFrom (x : Async<Result<_, _>>) = x
+    // member __.ReturnFrom (x : Result<_, _>) = async.Return x
+    // member __.ReturnFrom (x : Async<_>) = async { let! x = x in return Ok x }
+    
+    member __.Zero () = async.Return (Ok ())
+
+    member this.TryFinally (body, fin) =
+        try this.ReturnFrom (body ())
+        finally fin ()
+
+    member this.Using(disposable:#System.IDisposable, body) =
+        let body' = fun () -> body disposable
+        this.TryFinally(body', fun () -> 
+            match disposable with 
+                | null -> () 
+                | disp -> disp.Dispose())
+
+let asyncResult = AsyncResultBuilder()
+
+let rec allOk xs =
+    match xs with
+    | [] -> Ok []
+    | Ok x :: rest -> Result.map (fun r -> x::r) (allOk rest)
+    | Error x :: _ -> Error x
+
+// Data dowloads
+////////////////
+let downloadReleases (indexUrl : string) =
+    asyncResult {
+        use http = new HttpClient()
+        let! indexJson = http.GetStringAsync indexUrl |> Async.AwaitTask
+        let! index = Decode.fromString (Decode.list IndexEntry.Decoder) indexJson 
+        let! releasesJson =
+            index 
+            |> List.map (fun i -> 
+                http.GetStringAsync i.ReleasesJson 
+                |> Async.AwaitTask)
+            |> Async.Parallel
+        let! releases = 
+            releasesJson
+            |> Array.toList
+            |> List.map (Decode.fromString Release.Decoder)
+            |> allOk
+        return releases
+    }
+
+// Site generation
+//////////////////
 let now = DateTime.UtcNow
 
 type Config =
