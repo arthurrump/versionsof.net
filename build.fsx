@@ -65,7 +65,7 @@ let rewriteGithubUrls (url : string) =
     then url.Replace("/blob/", "/raw/") 
     else url
 
-let downloadGh = rewriteGithubUrls >> download
+let downloadGh accept = rewriteGithubUrls >> download accept
 let getJsonGh = rewriteGithubUrls >> getJson
 
 let decodeIndex = Decode.fromString (Decode.field "releases-index" (Decode.list IndexEntry.Decoder))
@@ -157,11 +157,16 @@ let parseConfig config =
 let template (site : StaticSite<Config, Page>) page = 
     let _property = XmlEngine.attr "property"
 
+    let mdPipeline =
+        MarkdownPipelineBuilder()
+            .UsePipeTables()
+            .Build()
+
     let titleText =
         match page.Content with
         | ChannelsOverview _ -> "Channels"
-        | ChannelPage ch -> string ch.ChannelVersion
-        | ReleasePage rel -> string rel.Release.ReleaseVersion
+        | ChannelPage ch -> sprintf "Channel %O" ch.ChannelVersion
+        | ReleasePage rel -> sprintf "Release %O" rel.Release.ReleaseVersion
         | ErrorPage (code, text) -> sprintf "%s: %s" code text
 
     let pageHeader =
@@ -171,8 +176,49 @@ let template (site : StaticSite<Config, Page>) page =
 
     let content = 
         match page.Content with
-        | _ -> 
-            div [ _class "titeled-container" ] [ ]
+        | ChannelsOverview channels -> 
+            div [] [
+                h1 [] [ str "Channels" ]
+                ul [] [ 
+                    for ch in channels ->
+                        li [] [ a [ _href (channelUrl ch) ] [ strf "%O" ch.ChannelVersion ] ]
+                ]
+            ]
+        | ChannelPage channel ->
+            div [] [
+                h1 [] [ strf "%O" channel.ChannelVersion ]
+                ul [] [
+                    for rel in channel.Releases ->
+                        li [] [ a [ _href (releaseUrl channel rel) ] [ strf "%O (%O)" rel.ReleaseVersion rel.ReleaseDate ] ]
+                ]
+            ]
+        | ReleasePage release ->
+            div [] [
+                yield h1 [] [ strf "%O" release.Release.ReleaseVersion ]
+                yield ul [] [
+                    yield li [] [ strf "Release date: %O" release.Release.ReleaseDate ]
+                    yield match release.Release.Runtime with 
+                          | Some r -> li [] [ strf "Runtime %O" r.Version ] 
+                          | None -> li [] [ strf "No runtime" ]
+                    for sdk in release.Release.Sdk :: release.Release.Sdks |> List.distinct ->
+                        li [] [ strf "SDK %O" sdk.Version ]
+                ]
+                yield match release.ReleaseNotesMarkdown with
+                      | Some md -> 
+                        div [] [
+                            h2 [] [ str "Release notes" ]
+                            a [ _href release.Release.ReleaseNotes.Value ] [ str "Source" ]
+                            rawText (Markdown.ToHtml(md, mdPipeline))
+                        ]
+                      | None -> match release.Release.ReleaseNotes with
+                                | Some url -> p [] [ a [ _href url ] [ str "Release notes" ] ]
+                                | None -> p [] [ str "No release notes" ]
+            ]
+        | ErrorPage (code, text) ->
+            div [] [
+                span [] [ str code ]
+                span [] [ str text ]
+            ]
 
     let frame content =
         match page.Content with
@@ -189,45 +235,30 @@ let template (site : StaticSite<Config, Page>) page =
   (function() {
     var u="//analytics.arthurrump.com/";
     _paq.push(['setTrackerUrl', u+'matomo.php']);
-    _paq.push(['setSiteId', '2']);
+    _paq.push(['setSiteId', '4']);
     var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
     g.type='text/javascript'; g.async=true; g.defer=true; g.src=u+'matomo.js'; s.parentNode.insertBefore(g,s);
   })();
-</script>""" // TODO: correct site id
-
-    let headerTags =
-        match page.Content with
-        | ChannelPage _ ->
-            // [ meta [ _name "keywords"; _content (project.Tags |> String.concat ",") ]
-            //   meta [ _name "title"; _content project.Title ]
-            //   meta [ _name "description"; _content project.Tagline ]
-            //   meta [ _name "twitter:card"; _content "summary_large_image" ]
-            //   meta [ _name "twitter:creator"; _content site.Config.AuthorTwitter ]
-            //   meta [ _property "og:title"; _content project.Title ]
-            //   meta [ _property "og:type"; _content "website" ]
-            //   meta [ _property "og:image"; _content (site.AbsoluteUrl project.Image) ]
-            //   meta [ _property "og:description"; _content project.Tagline ] ]
-            []
-        | _ ->
-            [ meta [ _name "description"; _content site.Config.Description ]
-              meta [ _property "og:title"; _content titleText ]
-              meta [ _property "og:type"; _content "website" ] ]
+</script>"""
 
     html [] [
-        head [ ] ([ 
+        head [ ] [ 
             meta [ _httpEquiv "Content-Type"; _content "text/html; charset=utf-8" ]
             title [] [ strf "%s - %s" titleText site.Config.Title ]
             link [ _rel "stylesheet"; _type "text/css"; _href "/style.css" ]
-            meta [ _name "copyright"; _content (sprintf "Copyright %i %s" now.Year "") ] // TODO
+            meta [ _name "title"; _content titleText ]
             meta [ _name "description"; _content site.Config.Description ]
+            meta [ _name "copyright"; _content (sprintf "Copyright %i %s" now.Year "Arthur Rump and .NET Foundation") ]
             meta [ _name "generator"; _content "Fake.StaticGen" ]
             meta [ _name "viewport"; _content "width=device-width, initial-scale=1" ]
             link [ _rel "canonical"; _href (site.AbsoluteUrl page.Url) ]
             meta [ _property "og:url"; _content (site.AbsoluteUrl page.Url) ]
             meta [ _property "og:site_name"; _content site.Config.Title ] 
-            meta [ _name "twitter:dnt"; _content "on" ]
+            meta [ _property "og:title"; _content titleText ]
+            meta [ _property "og:type"; _content "website" ]
+            meta [ _property "og:description"; _content site.Config.Description ]
             matomo
-        ] @ headerTags)
+        ]
         body [ ] [ 
             div [ _id "background" ] [ 
                 div [ _id "container" ] [ 
@@ -236,11 +267,9 @@ let template (site : StaticSite<Config, Page>) page =
                 ]
             ]
             footer [] [
-                span [] [ a [ _href "/archives" ] [ str "Archive" ] ]
-                span [] [ a [ _href "/tags" ] [ str "Tags" ] ]
-                span [] [ a [ _href "/feed.xml" ] [ str "RSS Feed" ] ]
+                span [] [ a [ _href "https://github.com/arthurrump/versionsof.net" ] [ str "View on GitHub" ] ]
                 span [] [ a [ _href "https://github.com/arthurrump/Fake.StaticGen" ] [ str "Generated with Fake.StaticGen" ] ]
-                span [] [ rawText "&copy; "; strf "%i %s" now.Year "" ] // TODO
+                span [] [ a [ _href "https://arthurrump.com" ] [ str "Created by Arthur Rump" ] ]
             ]
         ] 
     ]
