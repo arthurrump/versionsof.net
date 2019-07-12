@@ -12,9 +12,6 @@ nuget NetCoreVersions //"
     #r "netstandard"
 #endif
 
-#load "./helpers.fsx"
-open Helpers
-
 open Fake.Core
 open Fake.IO
 open Fake.IO.Globbing.Operators
@@ -32,42 +29,56 @@ open System
 open System.IO
 open System.Net.Http
 
+// Helpers
+//////////
+module private Async =
+    let map f x = async.Bind(x, f >> async.Return)
+
+module private Result =
+    let rec allOk xs =
+        match xs with
+        | [] -> Ok []
+        | Ok x :: rest -> Result.map (fun r -> x::r) (allOk rest)
+        | Error x :: _ -> Error x
+
 // Data dowloads
 ////////////////
 let download (accept : string) (url : string) =
-    asyncResult {
+    async {
         use http = new HttpClient()
         use req = new HttpRequestMessage(HttpMethod.Get, url)
         req.Headers.Add("Accept", accept)
         Trace.tracefn "Downloading %s" url
-        let! resp = http.SendAsync req |> awaitTask
+        let! resp = http.SendAsync req |> Async.AwaitTask
         if resp.IsSuccessStatusCode then
-            let! content = resp.Content.ReadAsStringAsync() |> awaitTask
-            return content
+            let! content = resp.Content.ReadAsStringAsync() |> Async.AwaitTask
+            return Ok content
         else
-            return! failf "Error fetching %s, response status %O" url resp.StatusCode
+            return Error (sprintf "Error fetching %s, response status %O" url resp.StatusCode)
     }
 
 let getJson url =
     download "application/json" url
 
-let decodeIndex = Decode.fromString (Decode.list IndexEntry.Decoder)
+let decodeIndex = Decode.fromString (Decode.field "releases-index" (Decode.list IndexEntry.Decoder))
 let decodeChannel = Decode.fromString Channel.Decoder
 
 let tryGetIndex url =
-    asyncResult { let! json = getJson url in return! decodeIndex json |> async.Return }
+    async { let! json = getJson url in return json |> Result.bind decodeIndex }
 
 let tryGetChannel url =
-    asyncResult { let! json = getJson url in return! decodeChannel json |> async.Return }
+    async { let! json = getJson url in return json |> Result.bind decodeChannel }
+
+let tryGetChannelsForIndex = 
+    List.map (fun i -> tryGetChannel i.ReleasesJson)
+    >> Async.Parallel
+    >> Async.map (List.ofArray >> Result.allOk)
 
 let tryGetChannels indexUrl =
-    asyncResult {
-        let! index = tryGetIndex indexUrl
-        return! 
-            index 
-            |> List.map (fun i -> tryGetChannel i.ReleasesJson)
-            |> Async.Parallel
-            |> Async.map (List.ofArray >> Result.allOk)
+    async {
+        match! tryGetIndex indexUrl with
+        | Ok index -> return! tryGetChannelsForIndex index
+        | Error e -> return Error e   
     }
 
 let getReleaseNoteLinks channels =
@@ -77,9 +88,9 @@ let getReleaseNoteLinks channels =
 let tryGetReleaseNotes channels =
     let releases = getReleaseNoteLinks channels
     [ for url in releases ->
-        asyncResult {
+        async {
             let! md = download "text/plain" url
-            return Some url, md
+            return Result.map (fun md -> Some url, md) md
         } ]
     |> Async.Parallel
     |> Async.map (List.ofArray >> Result.allOk >> Result.map Map.ofList)
@@ -105,10 +116,13 @@ let channelsToPages channels releaseNotesMap =
                                              ReleaseNotesMarkdown = releaseNotesMap |> Map.tryFind rel.ReleaseNotes |} } ]
 
 let tryGetPages indexUrl = 
-    asyncResult {
-        let! channels = tryGetChannels indexUrl
-        let! releaseNotesMap = tryGetReleaseNotes channels
-        return channelsToPages channels releaseNotesMap
+    async {
+        match! tryGetChannels indexUrl with
+        | Ok channels ->
+            let! releaseNotesMap = tryGetReleaseNotes channels
+            return Result.map (channelsToPages channels) releaseNotesMap
+        | Error e -> 
+            return Error e
     }
 
 // Site configuration
@@ -229,19 +243,18 @@ let createStaticSite config pages =
     |> StaticSite.withPage (ErrorPage ("404", "Not Found")) "/404.html"
 
 let tryGenerateSite config =
-    asyncResult {
-        let! pages = tryGetPages config.ReleasesIndexUrl
-        createStaticSite config pages
-        |> StaticSite.generateFromHtml "public" template
+    async {
+        match! tryGetPages config.ReleasesIndexUrl with
+        | Ok pages ->
+            createStaticSite config pages
+            |> StaticSite.generateFromHtml "public" template
+        | Error e -> failwith e
     }
 
 // Targets
 //////////
 Target.create "Generate" <| fun _ ->
     let config = File.readAsString "config.toml" |> parseConfig
-    let result = tryGenerateSite config |> Async.RunSynchronously
-    match result with
-    | Ok res -> Trace.tracefn "Completed: %A" res
-    | Error mes -> Trace.traceError mes
+    tryGenerateSite config |> Async.RunSynchronously
           
 Target.runOrDefault "Generate"
