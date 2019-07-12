@@ -60,14 +60,22 @@ let download (accept : string) (url : string) =
 let getJson url =
     download "application/json" url
 
+let rewriteGithubUrls (url : string) =
+    if url.StartsWith("https://github.com") 
+    then url.Replace("/blob/", "/raw/") 
+    else url
+
+let downloadGh = rewriteGithubUrls >> download
+let getJsonGh = rewriteGithubUrls >> getJson
+
 let decodeIndex = Decode.fromString (Decode.field "releases-index" (Decode.list IndexEntry.Decoder))
 let decodeChannel = Decode.fromString Channel.Decoder
 
 let tryGetIndex url =
-    async { let! json = getJson url in return json |> Result.bind decodeIndex }
+    async { let! json = getJsonGh url in return json |> Result.bind decodeIndex }
 
 let tryGetChannel url =
-    async { let! json = getJson url in return json |> Result.bind decodeChannel }
+    async { let! json = getJsonGh url in return json |> Result.bind decodeChannel }
 
 let tryGetChannelsForIndex = 
     List.map (fun i -> tryGetChannel i.ReleasesJson)
@@ -81,15 +89,18 @@ let tryGetChannels indexUrl =
         | Error e -> return Error e   
     }
 
-let getReleaseNoteLinks channels =
+let getMdReleaseNoteLinks channels =
     [ for ch in channels do yield! ch.Releases ]
-    |> List.choose (fun rel -> rel.ReleaseNotes)
+    |> List.choose (fun rel -> 
+        match rel.ReleaseNotes with
+        | Some url when url.EndsWith(".md") -> Some url
+        | _ -> None)
 
 let tryGetReleaseNotes channels =
-    let releases = getReleaseNoteLinks channels
+    let releases = getMdReleaseNoteLinks channels
     [ for url in releases ->
         async {
-            let! md = download "text/plain" url
+            let! md = downloadGh "text/plain" url
             return Result.map (fun md -> Some url, md) md
         } ]
     |> Async.Parallel
@@ -103,8 +114,9 @@ type Page =
     | ReleasePage of {| Release : Release; ReleaseNotesMarkdown : string option |}
     | ErrorPage of code: string * text: string
 
-let channelUrl ch = sprintf "/%O" ch.ChannelVersion
-let releaseUrl ch rel = sprintf "/%O/%O" ch.ChannelVersion rel.ReleaseVersion
+// TODO: index.html should not be needed here, fix in Fake.StaticGen
+let channelUrl ch = sprintf "/%O/index.html" ch.ChannelVersion
+let releaseUrl ch rel = sprintf "/%O/%O/index.html" ch.ChannelVersion rel.ReleaseVersion
 
 let channelsToPages channels releaseNotesMap =
     [ yield { Url = "/"; Content = ChannelsOverview channels }
