@@ -34,18 +34,31 @@ open System.Net.Http
 
 // Data dowloads
 ////////////////
-let getJson (url : string) =
-    use http = new HttpClient()
-    http.GetStringAsync url |> Async.AwaitTask
+let download (accept : string) (url : string) =
+    asyncResult {
+        use http = new HttpClient()
+        use req = new HttpRequestMessage(HttpMethod.Get, url)
+        req.Headers.Add("Accept", accept)
+        Trace.tracefn "Downloading %s" url
+        let! resp = http.SendAsync req |> awaitTask
+        if resp.IsSuccessStatusCode then
+            let! content = resp.Content.ReadAsStringAsync() |> awaitTask
+            return content
+        else
+            return! failf "Error fetching %s, response status %O" url resp.StatusCode
+    }
+
+let getJson url =
+    download "application/json" url
 
 let decodeIndex = Decode.fromString (Decode.list IndexEntry.Decoder)
 let decodeChannel = Decode.fromString Channel.Decoder
 
 let tryGetIndex url =
-    async { let! json = getJson url in return decodeIndex json }
+    asyncResult { let! json = getJson url in return! decodeIndex json |> async.Return }
 
 let tryGetChannel url =
-    async { let! json = getJson url in return decodeChannel json }
+    asyncResult { let! json = getJson url in return! decodeChannel json |> async.Return }
 
 let tryGetChannels indexUrl =
     asyncResult {
@@ -57,41 +70,72 @@ let tryGetChannels indexUrl =
             |> Async.map (List.ofArray >> Result.allOk)
     }
 
-// Site layout and data conversion
-//////////////////////////////////
+let getReleaseNoteLinks channels =
+    [ for ch in channels do yield! ch.Releases ]
+    |> List.choose (fun rel -> rel.ReleaseNotes)
+
+let tryGetReleaseNotes channels =
+    let releases = getReleaseNoteLinks channels
+    [ for url in releases ->
+        asyncResult {
+            let! md = download "text/plain" url
+            return Some url, md
+        } ]
+    |> Async.Parallel
+    |> Async.map (List.ofArray >> Result.allOk >> Result.map Map.ofList)
+
+// Site structure and page creation
+///////////////////////////////////
 type Page =
     | ChannelsOverview of Channel list
-
+    | ChannelPage of Channel
+    | ReleasePage of {| Release : Release; ReleaseNotesMarkdown : string option |}
     | ErrorPage of code: string * text: string
 
-// Site generation
-//////////////////
+let channelUrl ch = sprintf "/%O" ch.ChannelVersion
+let releaseUrl ch rel = sprintf "/%O/%O" ch.ChannelVersion rel.ReleaseVersion
+
+let channelsToPages channels releaseNotesMap =
+    [ yield { Url = "/"; Content = ChannelsOverview channels }
+      for ch in channels do
+        yield { Url = channelUrl ch; Content = ChannelPage ch }
+        for rel in ch.Releases do
+            yield { Url = releaseUrl ch rel
+                    Content = ReleasePage {| Release = rel
+                                             ReleaseNotesMarkdown = releaseNotesMap |> Map.tryFind rel.ReleaseNotes |} } ]
+
+let tryGetPages indexUrl = 
+    asyncResult {
+        let! channels = tryGetChannels indexUrl
+        let! releaseNotesMap = tryGetReleaseNotes channels
+        return channelsToPages channels releaseNotesMap
+    }
+
+// Site configuration
+/////////////////////
 let now = DateTime.UtcNow
 
 type Config =
     { ReleasesIndexUrl : string
-      DotnetTwitter : string
       Title : string
       Description : string }
-
-let tomlTryGet key (toml : TomlTable) =
-    if toml.ContainsKey(key) 
-    then Some (toml.[key].Get())
-    else None
 
 let parseConfig config =
     let toml = Toml.ReadString(config)
     { ReleasesIndexUrl = toml.["releases-index-url"].Get()
-      DotnetTwitter = toml.["dotnet-twitter"].Get()
       Title = toml.["title"].Get()
       Description = toml.["description"].Get() }
 
+// Template
+///////////
 let template (site : StaticSite<Config, Page>) page = 
     let _property = XmlEngine.attr "property"
 
     let titleText =
         match page.Content with
-        | Page -> ""
+        | ChannelsOverview _ -> "Channels"
+        | ChannelPage ch -> string ch.ChannelVersion
+        | ReleasePage rel -> string rel.Release.ReleaseVersion
         | ErrorPage (code, text) -> sprintf "%s: %s" code text
 
     let pageHeader =
@@ -101,12 +145,12 @@ let template (site : StaticSite<Config, Page>) page =
 
     let content = 
         match page.Content with
-        | Page | ErrorPage _ -> 
+        | _ -> 
             div [ _class "titeled-container" ] [ ]
 
     let frame content =
         match page.Content with
-        | Page | ErrorPage _ ->
+        | _ ->
             content
 
     let matomo =
@@ -127,7 +171,7 @@ let template (site : StaticSite<Config, Page>) page =
 
     let headerTags =
         match page.Content with
-        | Page ->
+        | ChannelPage _ ->
             // [ meta [ _name "keywords"; _content (project.Tags |> String.concat ",") ]
             //   meta [ _name "title"; _content project.Title ]
             //   meta [ _name "description"; _content project.Tagline ]
@@ -175,11 +219,29 @@ let template (site : StaticSite<Config, Page>) page =
         ] 
     ]
 
-Target.create "Generate" <| fun _ ->
-    StaticSite.fromConfigFile "https://versionsof.net" "config.toml" parseConfig
+// Site generation
+//////////////////
+let createStaticSite config pages =
+    StaticSite.fromConfig "https://versionsof.net" config
     |> StaticSite.withFilesFromSources (!! "icons/*") Path.GetFileName
     |> StaticSite.withFilesFromSources (!! "code/*") Path.GetFileName
+    |> StaticSite.withPages pages
     |> StaticSite.withPage (ErrorPage ("404", "Not Found")) "/404.html"
-    |> StaticSite.generateFromHtml "public" template
 
+let tryGenerateSite config =
+    asyncResult {
+        let! pages = tryGetPages config.ReleasesIndexUrl
+        createStaticSite config pages
+        |> StaticSite.generateFromHtml "public" template
+    }
+
+// Targets
+//////////
+Target.create "Generate" <| fun _ ->
+    let config = File.readAsString "config.toml" |> parseConfig
+    let result = tryGenerateSite config |> Async.RunSynchronously
+    match result with
+    | Ok res -> Trace.tracefn "Completed: %A" res
+    | Error mes -> Trace.traceError mes
+          
 Target.runOrDefault "Generate"
