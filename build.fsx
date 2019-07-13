@@ -172,13 +172,33 @@ let template (site : StaticSite<Config, Page>) page =
         | ErrorPage (code, text) -> sprintf "%s: %s" code text
 
     let content = 
+        let indicatorSymb symb text clas = 
+            div [ _class "status-box" ] [ 
+                span [] [ str text ] 
+                span [ _class ("status-indicator " + clas)
+                       _title text ] 
+                     symb 
+            ]
+
         match page.Content with
         | ChannelsOverview channels -> 
+            let supportIndicator supportPhase =
+                let indicator = indicatorSymb []
+                match supportPhase with
+                | "preview" ->     indicator "Preview" "border-black"
+                | "current" ->     indicator "Current" "green"
+                | "lts" ->         indicator "Long Term Support" "yellow"
+                | "eol" ->         indicator "End of Life" "red"
+                | "maintenance" -> indicator "Maintenance" "yellow"
+                | t -> indicatorSymb [ str "?" ] t "border-black"
+
             div [ _class "titled-container" ] [
                 h1 [] [ str "Channels" ]
-                ul [] [ 
-                    for ch in channels ->
-                        li [] [ a [ _href (channelUrl ch) ] [ strf "%O" ch.ChannelVersion ] ]
+                ul [ _class "channel-list" ] [ 
+                    for ch in channels -> li [] [ 
+                        span [ _class "title" ] [ a [ _href (channelUrl ch) ] [ strf "%O" ch.ChannelVersion ] ]
+                        supportIndicator ch.SupportPhase
+                    ]
                 ]
             ]
         | ChannelPage channel ->

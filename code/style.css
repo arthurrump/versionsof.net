@@ -67,6 +67,48 @@ a {
         color: #fff;
     }
 
+/* Status indicator */
+.status-box {
+    display: flex;
+    align-content: center;
+}
+
+.status-indicator {
+    align-self: center;
+    height: 1rem;
+    width: 1rem;
+    border-radius: 100%;
+    border: none;
+    box-sizing: border-box;
+    margin: 0 0.5rem;
+    font-size: 0.85rem;
+    line-height: 0.85rem;
+    text-align: center;
+    cursor: default;
+}
+
+    .status-indicator.green {
+        background: #28a745;
+    }
+
+    .status-indicator.yellow {
+        background: #ffc107;
+    }
+
+    .status-indicator.red {
+        background: #dc3545;
+    }
+
+    .status-indicator.border-black {
+        border: 0.05rem solid #000;
+        color: #000;
+    }
+
+    .status-indicator.border-red {
+        border: 0.05rem solid #dc3545;
+        color: #dc3545;
+    }
+
 /* Footer */
 body > footer {
     color: #565656;
