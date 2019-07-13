@@ -160,6 +160,8 @@ let template (site : StaticSite<Config, Page>) page =
     let mdPipeline =
         MarkdownPipelineBuilder()
             .UsePipeTables()
+            .UseAutoLinks()
+            .UseAutoIdentifiers(Extensions.AutoIdentifiers.AutoIdentifierOptions.GitHub)
             .Build()
 
     let titleText =
@@ -169,15 +171,10 @@ let template (site : StaticSite<Config, Page>) page =
         | ReleasePage rel -> sprintf "Release %O" rel.Release.ReleaseVersion
         | ErrorPage (code, text) -> sprintf "%s: %s" code text
 
-    let pageHeader =
-        header [ _id "main-header" ] [
-            span [ _id "title" ] [ a [ _href "/" ] [ str "Versions of .NET Core" ] ]
-        ]
-
     let content = 
         match page.Content with
         | ChannelsOverview channels -> 
-            div [] [
+            div [ _class "titled-container" ] [
                 h1 [] [ str "Channels" ]
                 ul [] [ 
                     for ch in channels ->
@@ -185,17 +182,17 @@ let template (site : StaticSite<Config, Page>) page =
                 ]
             ]
         | ChannelPage channel ->
-            div [] [
-                h1 [] [ strf "%O" channel.ChannelVersion ]
+            div [ _class "titled-container" ] [
+                h1 [] [ strf "Channel %O" channel.ChannelVersion ]
                 ul [] [
                     for rel in channel.Releases ->
                         li [] [ a [ _href (releaseUrl channel rel) ] [ strf "%O (%O)" rel.ReleaseVersion rel.ReleaseDate ] ]
                 ]
             ]
         | ReleasePage release ->
-            div [] [
-                yield h1 [] [ strf "%O" release.Release.ReleaseVersion ]
-                yield ul [] [
+            div [ _class "titled-container" ] [
+                h1 [] [ strf "Release %O" release.Release.ReleaseVersion ]
+                ul [] [
                     yield li [] [ strf "Release date: %O" release.Release.ReleaseDate ]
                     yield match release.Release.Runtime with 
                           | Some r -> li [] [ strf "Runtime %O" r.Version ] 
@@ -203,21 +200,21 @@ let template (site : StaticSite<Config, Page>) page =
                     for sdk in release.Release.Sdk :: release.Release.Sdks |> List.distinct ->
                         li [] [ strf "SDK %O" sdk.Version ]
                 ]
-                yield match release.ReleaseNotesMarkdown with
-                      | Some md -> 
-                        div [] [
-                            h2 [] [ str "Release notes" ]
-                            a [ _href release.Release.ReleaseNotes.Value ] [ str "Source" ]
-                            rawText (Markdown.ToHtml(md, mdPipeline))
-                        ]
-                      | None -> match release.Release.ReleaseNotes with
-                                | Some url -> p [] [ a [ _href url ] [ str "Release notes" ] ]
-                                | None -> p [] [ str "No release notes" ]
+                div [] [
+                    yield h2 [] [ str "Release notes" ]
+                    match release.ReleaseNotesMarkdown with
+                    | Some md ->
+                          yield a [ _href release.Release.ReleaseNotes.Value ] [ str "Source" ]
+                          yield rawText (Markdown.ToHtml(md, mdPipeline))
+                    | None -> match release.Release.ReleaseNotes with
+                              | Some url -> yield p [] [ a [ _href url ] [ str "Release notes" ] ]
+                              | None -> yield p [] [ str "No release notes available" ]
+                ]
             ]
         | ErrorPage (code, text) ->
-            div [] [
-                span [] [ str code ]
-                span [] [ str text ]
+            div [ _id "error-page" ] [
+                span [ _class "status-code" ] [ str code ]
+                span [ _class "status-text" ] [ str text ]
             ]
 
     let frame content =
@@ -260,9 +257,13 @@ let template (site : StaticSite<Config, Page>) page =
             matomo
         ]
         body [ ] [ 
+            header [ _id "main-header" ] [
+                div [ _class "container" ] [
+                    span [ _id "title" ] [ a [ _href "/" ] [ str "Versions of .NET Core" ] ]
+                ]
+            ]
             div [ _id "background" ] [ 
-                div [ _id "container" ] [ 
-                    pageHeader
+                div [ _class "container" ] [ 
                     frame content 
                 ]
             ]
