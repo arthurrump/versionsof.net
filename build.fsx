@@ -189,26 +189,51 @@ let template (site : StaticSite<Config, Page>) page =
                         li [] [ a [ _href (releaseUrl channel rel) ] [ strf "%O (%O)" rel.ReleaseVersion rel.ReleaseDate ] ]
                 ]
             ]
-        | ReleasePage release ->
+        | ReleasePage releaseAndNotes ->
+            let rel = releaseAndNotes.Release
+            let sdks = rel.Sdk :: rel.Sdks |> List.distinct
+
+            let filesList title files =
+                div [] [
+                    h3 [] [ str title ]
+                    ul [] [
+                        for file in files -> li [] [ a [ _href file.Url ] [ str file.Name ] ]
+                    ]
+                ]
+
             div [ _class "titled-container" ] [
-                h1 [] [ strf "Release %O" release.Release.ReleaseVersion ]
+                h1 [] [ strf "Release %O" rel.ReleaseVersion ]
                 ul [] [
-                    yield li [] [ strf "Release date: %O" release.Release.ReleaseDate ]
-                    yield match release.Release.Runtime with 
+                    yield li [] [ strf "Release date: %O" rel.ReleaseDate ]
+                    yield match rel.Runtime with 
                           | Some r -> li [] [ strf "Runtime %O" r.Version ] 
                           | None -> li [] [ strf "No runtime" ]
-                    for sdk in release.Release.Sdk :: release.Release.Sdks |> List.distinct ->
+                    for sdk in sdks ->
                         li [] [ strf "SDK %O" sdk.Version ]
                 ]
                 div [] [
                     yield h2 [] [ str "Release notes" ]
-                    match release.ReleaseNotesMarkdown with
+                    match releaseAndNotes.ReleaseNotesMarkdown with
                     | Some md ->
-                          yield a [ _href release.Release.ReleaseNotes.Value ] [ str "Source" ]
+                          yield a [ _href rel.ReleaseNotes.Value ] [ str "Source" ]
                           yield rawText (Markdown.ToHtml(md, mdPipeline))
-                    | None -> match release.Release.ReleaseNotes with
+                    | None -> match rel.ReleaseNotes with
                               | Some url -> yield p [] [ a [ _href url ] [ str "Release notes" ] ]
                               | None -> yield p [] [ str "No release notes available" ]
+                ]
+                div [] [
+                    yield h2 [] [ str "Downloads" ]
+                    match rel.Runtime with
+                    | Some rt -> yield filesList "Runtime" rt.Files
+                    | None -> ()
+                    for sdk in sdks ->
+                        filesList (sprintf "SDK %O" sdk.Version) sdk.Files
+                    match rel.AspnetcoreRuntime with
+                    | Some asp -> yield filesList "ASP.NET Runtime" asp.Files
+                    | None -> ()
+                    match rel.Symbols with
+                    | Some symb -> yield filesList "Symbols" symb.Files
+                    | None -> ()
                 ]
             ]
         | ErrorPage (code, text) ->
