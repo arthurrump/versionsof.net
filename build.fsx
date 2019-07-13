@@ -162,6 +162,7 @@ let template (site : StaticSite<Config, Page>) page =
             .UsePipeTables()
             .UseAutoLinks()
             .UseAutoIdentifiers(Extensions.AutoIdentifiers.AutoIdentifierOptions.GitHub)
+            .UseSyntaxHighlighting()
             .Build()
 
     let titleText =
@@ -231,12 +232,12 @@ let template (site : StaticSite<Config, Page>) page =
                     for sdk in sdks ->
                         li [] [ strf "SDK %O" sdk.Version ]
                 ]
-                div [] [
+                div [ _class "release-notes" ] [
                     yield h2 [] [ str "Release notes" ]
                     match releaseAndNotes.ReleaseNotesMarkdown with
                     | Some md ->
-                          yield a [ _href rel.ReleaseNotes.Value ] [ str "Source" ]
-                          yield rawText (Markdown.ToHtml(md, mdPipeline))
+                          //yield a [ _href rel.ReleaseNotes.Value ] [ str "Source" ]
+                          yield article [ _class "text" ] [ rawText (Markdown.ToHtml(md, mdPipeline)) ]
                     | None -> match rel.ReleaseNotes with
                               | Some url -> yield p [] [ a [ _href url ] [ str "Release notes" ] ]
                               | None -> yield p [] [ str "No release notes available" ]
