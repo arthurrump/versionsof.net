@@ -33,6 +33,10 @@ a {
         text-decoration: underline;
     }
 
+.titled-container > h1 {
+    margin-top: 0;
+}
+
 @media (max-width: 700px) {
     .titled-container > h1 {
         margin-left: .6rem;
@@ -65,6 +69,20 @@ a {
 
     #title a {
         color: #fff;
+    }
+
+/* Breadcrumbs */
+#breadcrumbs {
+    margin: .6rem 0 .4rem;
+    font-size: .85rem;
+}
+
+    #breadcrumbs a {
+        color: #000;
+    }
+
+    #breadcrumbs .sep {
+        margin: 0 .4rem;
     }
 
 /* Status indicator */

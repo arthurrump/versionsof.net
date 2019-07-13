@@ -111,7 +111,7 @@ let tryGetReleaseNotes channels =
 type Page =
     | ChannelsOverview of Channel list
     | ChannelPage of Channel
-    | ReleasePage of {| Release : Release; ReleaseNotesMarkdown : string option |}
+    | ReleasePage of {| Channel : Channel; Release : Release; ReleaseNotesMarkdown : string option |}
     | ErrorPage of code: string * text: string
 
 // TODO: index.html should not be needed here, fix in Fake.StaticGen
@@ -124,7 +124,8 @@ let channelsToPages channels releaseNotesMap =
         yield { Url = channelUrl ch; Content = ChannelPage ch }
         for rel in ch.Releases do
             yield { Url = releaseUrl ch rel
-                    Content = ReleasePage {| Release = rel
+                    Content = ReleasePage {| Channel = ch
+                                             Release = rel
                                              ReleaseNotesMarkdown = releaseNotesMap |> Map.tryFind rel.ReleaseNotes |} } ]
 
 let tryGetPages indexUrl = 
@@ -171,6 +172,17 @@ let template (site : StaticSite<Config, Page>) page =
         | ChannelPage ch -> sprintf "Channel %O" ch.ChannelVersion
         | ReleasePage rel -> sprintf "Release %O" rel.Release.ReleaseVersion
         | ErrorPage (code, text) -> sprintf "%s: %s" code text
+
+    let breadcrumbs =
+        match page.Content with
+        | ChannelsOverview _ | ErrorPage _ -> []
+        | ChannelPage _ -> 
+            [ ("/", "Channels") ]
+        | ReleasePage rel -> 
+            [ ("/", "Channels"); (channelUrl rel.Channel, sprintf "Channel %O" rel.Channel.ChannelVersion) ]
+        |> List.map (fun (url, title) -> [ a [ _href url ] [ str title ]; span [ _class "sep" ] [ str "/" ] ])
+        |> List.concat
+        |> div [ _id "breadcrumbs" ]
 
     let content = 
         let indicatorSymb symb text clas = 
@@ -263,11 +275,6 @@ let template (site : StaticSite<Config, Page>) page =
                 span [ _class "status-text" ] [ str text ]
             ]
 
-    let frame content =
-        match page.Content with
-        | _ ->
-            content
-
     let matomo =
         rawText """<script type="text/javascript">
   var _paq = window._paq || [];
@@ -310,7 +317,8 @@ let template (site : StaticSite<Config, Page>) page =
             ]
             div [ _id "background" ] [ 
                 div [ _class "container" ] [ 
-                    frame content 
+                    breadcrumbs
+                    content 
                 ]
             ]
             footer [] [
