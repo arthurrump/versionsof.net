@@ -157,6 +157,7 @@ let parseConfig config =
 ///////////
 let template (site : StaticSite<Config, Page>) page = 
     let _property = XmlEngine.attr "property"
+    let date () (d : DateTime) = d.ToString "yyyy-MM-dd"
 
     let mdPipeline =
         MarkdownPipelineBuilder()
@@ -187,10 +188,10 @@ let template (site : StaticSite<Config, Page>) page =
     let content = 
         let indicatorSymb symb text clas = 
             div [ _class "status-box" ] [ 
-                span [] [ str text ] 
                 span [ _class ("status-indicator " + clas)
                        _title text ] 
                      symb 
+                span [] [ str text ] 
             ]
 
         match page.Content with
@@ -207,10 +208,35 @@ let template (site : StaticSite<Config, Page>) page =
 
             div [ _class "titled-container" ] [
                 h1 [] [ str "Channels" ]
-                ul [ _class "channel-list" ] [ 
-                    for ch in channels -> li [] [ 
-                        span [ _class "title" ] [ a [ _href (channelUrl ch) ] [ strf "%O" ch.ChannelVersion ] ]
-                        supportIndicator ch.SupportPhase
+                table [ _class "channels-table" ] [ 
+                    thead [] [ tr [] [
+                        th [] [ str "Channel" ]
+                        th [] [ str "Support" ]
+                        th [] [ str "Latest release" ]
+                        th [] [ str "Latest release date" ]
+                        th [] [ str "End of Life date" ]
+                    ] ]
+                    tbody [] [
+                        for ch in channels -> tr [] [ 
+                            td [ _class "title" ] [ a [ _href (channelUrl ch) ] [ strf "%O" ch.ChannelVersion ] ]
+                            td [ _class "support" ] [ supportIndicator ch.SupportPhase ]
+                            td [ _class "latest-rel" ] [ 
+                                span [ _class "label" ] [ str "Latest release: " ]
+                                strf "%O" ch.LatestRelease 
+                            ]
+                            td [ _class "latest-rel-date" ] [ 
+                                span [ _class "label" ] [ str "Last updated on " ]
+                                strf "%a" date ch.LatestReleaseDate 
+                            ]
+                            td [ _class ("eol-date" + if ch.EolDate.IsNone then " unknown" else "") ] [ 
+                                match ch.EolDate with 
+                                | Some d ->
+                                    yield span [ _class "label" ] [ str "EOL: " ] 
+                                    yield strf "%a" date d 
+                                | None -> 
+                                    yield str "-" 
+                            ]
+                        ]
                     ]
                 ]
             ]
@@ -219,7 +245,7 @@ let template (site : StaticSite<Config, Page>) page =
                 h1 [] [ strf "Channel %O" channel.ChannelVersion ]
                 ul [] [
                     for rel in channel.Releases ->
-                        li [] [ a [ _href (releaseUrl channel rel) ] [ strf "%O (%O)" rel.ReleaseVersion rel.ReleaseDate ] ]
+                        li [] [ a [ _href (releaseUrl channel rel) ] [ strf "%O (%a)" rel.ReleaseVersion date rel.ReleaseDate ] ]
                 ]
             ]
         | ReleasePage releaseAndNotes ->
@@ -237,7 +263,7 @@ let template (site : StaticSite<Config, Page>) page =
             div [ _class "titled-container" ] [
                 h1 [] [ strf "Release %O" rel.ReleaseVersion ]
                 ul [] [
-                    yield li [] [ strf "Release date: %O" rel.ReleaseDate ]
+                    yield li [] [ strf "Release date: %a" date rel.ReleaseDate ]
                     yield match rel.Runtime with 
                           | Some r -> li [] [ strf "Runtime %O" r.Version ] 
                           | None -> li [] [ strf "No runtime" ]

@@ -85,6 +85,74 @@ a {
         margin: 0 .4rem;
     }
 
+/* Channel list */
+.channels-table {
+    border-spacing: 0 .2rem;
+    table-layout: auto;
+    width: 100%;
+}
+
+    .channels-table tr {
+        background: #fff;
+    }
+
+    .channels-table td, .channels-table th {
+        display: table-cell;
+        padding: .6rem;
+        line-height: 1.5;
+        vertical-align: top;
+        border: none;
+        white-space: nowrap;
+        text-align: left
+    }
+
+    .channels-table .label {
+        display: none;
+    }
+
+    .channels-table a {
+        color: #000;
+        text-decoration: none;
+    }
+
+@media (max-width: 700px) {
+    .channels-table {
+        display: block;
+    }
+
+        .channels-table thead {
+            display: none;
+        }
+
+        .channels-table tbody {
+            display: flex;
+            flex-flow: column nowrap;
+        }
+
+            .channels-table tbody tr {
+                display: flex;
+                flex-flow: row wrap;
+                margin-bottom: .6rem;
+            }
+
+            .channels-table tbody td {
+                display: inline;
+            }
+
+                .channels-table tbody td.title {
+                    font-size: 1.8rem;
+                    font-weight: 600;
+                }
+
+                .channels-table tbody td.eol-date.unknown {
+                    display: none;
+                }
+
+        .channels-table .label {
+            display: inline;
+        }
+}
+
 /* Status indicator */
 .status-box {
     display: flex;
@@ -104,6 +172,12 @@ a {
     text-align: center;
     cursor: default;
 }
+
+    @media (max-width: 700px) {
+        .status-indicator {
+            order: 2;
+        }
+    }
 
     .status-indicator.green {
         background: #28a745;
