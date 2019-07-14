@@ -85,7 +85,11 @@ a {
         margin: 0 .4rem;
     }
 
-/* Channel list */
+/* Channel and releases tables */
+.table-wrapper {
+    overflow-y: auto;
+}
+
 .overview-table {
     border-spacing: 0 .2rem;
     table-layout: auto;
@@ -107,7 +111,7 @@ a {
         vertical-align: top;
         border: none;
         white-space: nowrap;
-        text-align: left
+        text-align: left;
     }
 
     .overview-table .label {
@@ -261,6 +265,8 @@ a {
 /* Long form text */
 .text {
     background: #fff;
+    overflow-wrap: break-word;
+    word-break: break-word;
 }
 
     .text a {
@@ -281,6 +287,8 @@ a {
     .text table {
         display: block;
         overflow: auto;
+        overflow-wrap: normal;
+        word-break: normal;
         width: 100%;
         border-collapse: collapse;
         border-spacing: 0;

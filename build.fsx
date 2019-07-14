@@ -212,33 +212,35 @@ let template (site : StaticSite<Config, Page>) page =
 
             div [ _class "titled-container" ] [
                 h1 [] [ str ".NET Core" ]
-                table [ _class "overview-table channels-table" ] [ 
-                    thead [] [ tr [] [
-                        th [] [ str "Channel" ]
-                        th [] [ str "Support" ]
-                        th [] [ str "Latest release" ]
-                        th [] [ str "Latest release date" ]
-                        th [] [ str "End of Life date" ]
-                    ] ]
-                    tbody [] [
-                        for ch in channels -> tr [ _onclick (sprintf "location.pathname = '%s';" (channelUrl ch)) ] [ 
-                            td [ _class "title" ] [ a [ _href (channelUrl ch) ] [ strf "%O" ch.ChannelVersion ] ]
-                            td [ _class "support" ] [ supportIndicator ch.SupportPhase ]
-                            td [ _class "latest-rel" ] [ 
-                                span [ _class "label" ] [ str "Latest release: " ]
-                                strf "%O" ch.LatestRelease 
-                            ]
-                            td [ _class "latest-rel-date" ] [ 
-                                span [ _class "label" ] [ str "Last updated on " ]
-                                strf "%a" date ch.LatestReleaseDate 
-                            ]
-                            td [ _class ("eol-date" + if ch.EolDate.IsNone then " unknown" else "") ] [ 
-                                match ch.EolDate with 
-                                | Some d ->
-                                    yield span [ _class "label" ] [ str "EOL: " ] 
-                                    yield strf "%a" date d 
-                                | None -> 
-                                    yield str "-" 
+                div [ _class "table-wrapper" ] [
+                    table [ _class "overview-table channels-table" ] [ 
+                        thead [] [ tr [] [
+                            th [] [ str "Channel" ]
+                            th [] [ str "Support" ]
+                            th [] [ str "Latest release" ]
+                            th [] [ str "Latest release date" ]
+                            th [] [ str "End of Life date" ]
+                        ] ]
+                        tbody [] [
+                            for ch in channels -> tr [ _onclick (sprintf "location.pathname = '%s';" (channelUrl ch)) ] [ 
+                                td [ _class "title" ] [ a [ _href (channelUrl ch) ] [ strf "%O" ch.ChannelVersion ] ]
+                                td [ _class "support" ] [ supportIndicator ch.SupportPhase ]
+                                td [ _class "latest-rel" ] [ 
+                                    span [ _class "label" ] [ str "Latest release: " ]
+                                    strf "%O" ch.LatestRelease 
+                                ]
+                                td [ _class "latest-rel-date" ] [ 
+                                    span [ _class "label" ] [ str "Last updated on " ]
+                                    strf "%a" date ch.LatestReleaseDate 
+                                ]
+                                td [ _class ("eol-date" + if ch.EolDate.IsNone then " unknown" else "") ] [ 
+                                    match ch.EolDate with 
+                                    | Some d ->
+                                        yield span [ _class "label" ] [ str "EOL: " ] 
+                                        yield strf "%a" date d 
+                                    | None -> 
+                                        yield str "-" 
+                                ]
                             ]
                         ]
                     ]
@@ -247,34 +249,36 @@ let template (site : StaticSite<Config, Page>) page =
         | ChannelPage channel ->
             div [ _class "titled-container" ] [
                 h1 [] [ strf "Channel %O" channel.ChannelVersion ]
-                table [ _class "overview-table releases-table" ] [
-                    thead [] [ tr [] [
-                        th [] [ str "Version" ]
-                        th [] [ str "Release date" ]
-                        th [] [ str "Runtime" ]
-                        th [] [ str "SDKs" ]
-                        th [] [ str "Security" ]
-                    ] ]
-                    tbody [] [
-                        for rel in channel.Releases -> tr [ _onclick (sprintf "location.pathname = '%s';" (releaseUrl channel rel)) ] [
-                            td [ _class "title" ] [ a [ _href (releaseUrl channel rel) ] [ strf "%O" rel.ReleaseVersion ] ]
-                            td [ _class "rel-date" ] [
-                                span [ _class "label" ] [ str "Released on " ]
-                                strf "%a" date rel.ReleaseDate
+                div [ _class "table-wrapper" ] [
+                    table [ _class "overview-table releases-table" ] [
+                        thead [] [ tr [] [
+                            th [] [ str "Version" ]
+                            th [] [ str "Release date" ]
+                            th [] [ str "Runtime" ]
+                            th [] [ str "SDKs" ]
+                            th [] [ str "Security" ]
+                        ] ]
+                        tbody [] [
+                            for rel in channel.Releases -> tr [ _onclick (sprintf "location.pathname = '%s';" (releaseUrl channel rel)) ] [
+                                td [ _class "title" ] [ a [ _href (releaseUrl channel rel) ] [ strf "%O" rel.ReleaseVersion ] ]
+                                td [ _class "rel-date" ] [
+                                    span [ _class "label" ] [ str "Released on " ]
+                                    strf "%a" date rel.ReleaseDate
+                                ]
+                                td [ _class ("runtime" + if rel.Runtime.IsNone then " unknown" else "") ] [
+                                    match rel.Runtime with
+                                    | Some rt ->
+                                        yield span [ _class "label" ] [ str "Runtime: " ]
+                                        yield strf "%O" rt.Version
+                                    | None ->
+                                        yield str "-"
+                                ]
+                                td [ _class "sdks" ] [
+                                    span [ _class "label" ] [ str "SDKs: " ]
+                                    str (allSdks rel |> List.map (fun sdk -> string sdk.Version) |> String.concat ", ")
+                                ]
+                                td [ _class "security" ] [ if rel.Security then yield indicatorSymb [ str "!" ] "Security" "border-red" ]
                             ]
-                            td [ _class ("runtime" + if rel.Runtime.IsNone then " unknown" else "") ] [
-                                match rel.Runtime with
-                                | Some rt ->
-                                    yield span [ _class "label" ] [ str "Runtime: " ]
-                                    yield strf "%O" rt.Version
-                                | None ->
-                                    yield str "-"
-                            ]
-                            td [ _class "sdks" ] [
-                                span [ _class "label" ] [ str "SDKs: " ]
-                                str (allSdks rel |> List.map (fun sdk -> string sdk.Version) |> String.concat ", ")
-                            ]
-                            td [ _class "security" ] [ if rel.Security then yield indicatorSymb [ str "!" ] "Security" "border-red" ]
                         ]
                     ]
                 ]
