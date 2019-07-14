@@ -217,8 +217,8 @@ let template (site : StaticSite<Config, Page>) page =
     let content = 
         match page.Content with
         | ChannelsOverview channels -> 
-            div [ _class "titled-container" ] [
-                h1 [] [ str ".NET Core" ]
+            div [ _class "inner-container" ] [
+                h1 [ _class "inner-spaced" ] [ str ".NET Core" ]
                 div [ _class "table-wrapper" ] [
                     table [ _class "overview-table channels-table" ] [ 
                         thead [] [ tr [] [
@@ -266,8 +266,8 @@ let template (site : StaticSite<Config, Page>) page =
                     allSdks rel 
                     |> List.exists (fun sdk -> sdk.Version = channel.LatestSdk))
 
-            div [ _class "titled-container" ] [
-                h1 [] [ strf "Channel %O" channel.ChannelVersion ]
+            div [ _class "inner-container" ] [
+                h1 [ _class "inner-spaced" ] [ strf "Channel %O" channel.ChannelVersion ]
                 ul [ _class "channel-props" ] [
                     yield li [] [ supportIndicator channel.SupportPhase ]
                     match channel.EolDate with 
@@ -283,7 +283,7 @@ let template (site : StaticSite<Config, Page>) page =
                         a [ _href (releaseUrl channel latestSdkRel) ] [ strf "%O" (channel.LatestSdk |> Version.simplify) ]
                     ]
                 ]
-                h2 [] [ str "Releases" ]
+                h2 [ _class "inner-spaced" ] [ str "Releases" ]
                 div [ _class "table-wrapper" ] [
                     table [ _class "overview-table releases-table" ] [
                         thead [] [ tr [] [
@@ -328,9 +328,9 @@ let template (site : StaticSite<Config, Page>) page =
                     ]
                 ]
 
-            div [ _class "titled-container" ] [
-                h1 [] [ strf "Release %O" rel.ReleaseVersion ]
-                ul [] [
+            div [ _class "inner-container" ] [
+                h1 [ _class "inner-spaced" ] [ strf "Release %O" rel.ReleaseVersion ]
+                ul [ _class "inner-spaced" ] [
                     yield li [] [ strf "Release date: %a" date rel.ReleaseDate ]
                     yield match rel.Runtime with 
                           | Some r -> li [] [ strf "Runtime %O" r.Version ] 
@@ -339,16 +339,21 @@ let template (site : StaticSite<Config, Page>) page =
                         li [] [ strf "SDK %O" sdk.Version ]
                 ]
                 div [ _class "release-notes" ] [
-                    yield h2 [] [ str "Release notes" ]
+                    yield h2 [ _class "inner-spaced" ] [ str "Release notes" ]
                     match releaseAndNotes.ReleaseNotesMarkdown with
                     | Some md ->
                           //yield a [ _href rel.ReleaseNotes.Value ] [ str "Source" ]
                           yield article [ _class "text" ] [ rawText (Markdown.ToHtml(md, mdPipeline)) ]
                     | None -> match rel.ReleaseNotes with
-                              | Some url -> yield p [] [ a [ _href url ] [ str "Release notes" ] ]
-                              | None -> yield p [] [ str "No release notes available" ]
+                              | Some url -> yield p [ _class "text" ] [ 
+                                  str "These release notes could not be displayed. Find them here: "
+                                  a [ _href url ] [ str "Release notes" ] 
+                                ]
+                              | None -> yield p [ _class "text" ] [ 
+                                  strf "No release notes available for %O" rel.ReleaseVersion 
+                                ]
                 ]
-                div [] [
+                div [ _class "inner-spaced" ] [
                     yield h2 [] [ str "Downloads" ]
                     match rel.Runtime with
                     | Some rt -> yield filesList "Runtime" rt.Files

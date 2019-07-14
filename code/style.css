@@ -34,12 +34,12 @@ a {
         text-decoration: underline;
     }
 
-.titled-container > h1 {
+.inner-container > h1 {
     margin-top: 0;
 }
 
 @media (max-width: 700px) {
-    .titled-container > h1 {
+    .inner-container .inner-spaced {
         margin-left: .6rem;
         margin-right: .6rem;
     }
@@ -84,6 +84,13 @@ a {
 
     #breadcrumbs .sep {
         margin: 0 .4rem;
+    }
+
+    @media (max-width: 700px) {
+        #breadcrumbs {
+            margin-left: .6rem;
+            margin-right: .6rem;
+        }
     }
 
 /* Channel and releases tables */
@@ -276,6 +283,22 @@ ul.channel-props {
 
     .release-notes article > *:first-child {
         margin-top: 0;
+    }
+
+    @media (max-width: 700px) {
+        .release-notes article {
+            padding: .6rem;
+        }
+    }
+
+.release-notes > p {
+    padding: .6rem 2.6rem;
+}
+
+    @media (max-width: 700px) {
+        .release-notes > p {
+            padding: .6rem;
+        }
     }
 
 /* Long form text */
