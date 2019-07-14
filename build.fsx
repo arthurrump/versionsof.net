@@ -321,7 +321,7 @@ let template (site : StaticSite<Config, Page>) page =
         | ReleasePage releaseAndNotes ->
             let rel = releaseAndNotes.Release
             let filesList title files =
-                div [] [
+                div [ _class "files-list" ] [
                     h3 [] [ str title ]
                     ul [] [
                         for file in files -> li [] [ a [ _href file.Url ] [ str file.Name ] ]
@@ -353,19 +353,21 @@ let template (site : StaticSite<Config, Page>) page =
                                   strf "No release notes available for %O" rel.ReleaseVersion 
                                 ]
                 ]
-                div [ _class "inner-spaced" ] [
+                div [ _class "inner-spaced downloads" ] [
                     yield h2 [] [ str "Downloads" ]
-                    match rel.Runtime with
-                    | Some rt -> yield filesList "Runtime" rt.Files
-                    | None -> ()
-                    for sdk in allSdks rel ->
-                        filesList (sprintf "SDK %O" sdk.Version) sdk.Files
-                    match rel.AspnetcoreRuntime with
-                    | Some asp -> yield filesList "ASP.NET Runtime" asp.Files
-                    | None -> ()
-                    match rel.Symbols with
-                    | Some symb -> yield filesList "Symbols" symb.Files
-                    | None -> ()
+                    yield div [ _class "files-container" ] [
+                        match rel.Runtime with
+                        | Some rt -> yield filesList "Runtime" rt.Files
+                        | None -> ()
+                        for sdk in allSdks rel ->
+                            filesList (sprintf "SDK %O" sdk.Version) sdk.Files
+                        match rel.AspnetcoreRuntime with
+                        | Some asp -> yield filesList "ASP.NET Runtime" asp.Files
+                        | None -> ()
+                        match rel.Symbols with
+                        | Some symb -> yield filesList "Symbols" symb.Files
+                        | None -> ()
+                    ]
                 ]
             ]
         | ErrorPage (code, text) ->
