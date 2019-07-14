@@ -20,14 +20,15 @@ open Fake.StaticGen.Html
 open Fake.StaticGen.Html.ViewEngine
 open Fake.StaticGen.Markdown
 
-open Markdig
-open NetCore.Versions.Data
-open Nett
-open Thoth.Json.Net
-
 open System
 open System.IO
 open System.Net.Http
+
+open Markdig
+open NetCore.Versions
+open NetCore.Versions.Data
+open Nett
+open Thoth.Json.Net
 
 // Helpers
 //////////
@@ -40,6 +41,12 @@ module private Result =
         | [] -> Ok []
         | Ok x :: rest -> Result.map (fun r -> x::r) (allOk rest)
         | Error x :: _ -> Error x
+
+module private Version =
+    let simplify version =
+        match version.Preview with
+        | Some prev -> { version with Preview = Some (prev.Split('-').[0]) }
+        | None -> version
 
 // Data dowloads
 ////////////////
@@ -119,8 +126,8 @@ type Page =
     | ErrorPage of code: string * text: string
 
 // TODO: index.html should not be needed here, fix in Fake.StaticGen
-let channelUrl ch = sprintf "/%O/index.html" ch.ChannelVersion
-let releaseUrl ch rel = sprintf "/%O/%O/index.html" ch.ChannelVersion rel.ReleaseVersion
+let channelUrl ch = sprintf "/core/%O/index.html" ch.ChannelVersion
+let releaseUrl ch rel = sprintf "/core/%O/%O/index.html" ch.ChannelVersion rel.ReleaseVersion
 
 let channelsToPages channels releaseNotesMap =
     [ yield { Url = "/"; Content = ChannelsOverview channels }
@@ -179,6 +186,16 @@ let template (site : StaticSite<Config, Page>) page =
             span [] [ str text ] 
         ]
 
+    let supportIndicator supportPhase =
+        let indicator = indicatorSymb []
+        match supportPhase with
+        | "preview" ->     indicator "Preview" "border-black"
+        | "current" ->     indicator "Current" "green"
+        | "lts" ->         indicator "Long Term Support" "yellow"
+        | "eol" ->         indicator "End of Life" "red"
+        | "maintenance" -> indicator "Maintenance" "yellow"
+        | t -> indicatorSymb [ str "?" ] t "border-black"
+
     let titleText =
         match page.Content with
         | ChannelsOverview _ -> ".NET Core"
@@ -200,16 +217,6 @@ let template (site : StaticSite<Config, Page>) page =
     let content = 
         match page.Content with
         | ChannelsOverview channels -> 
-            let supportIndicator supportPhase =
-                let indicator = indicatorSymb []
-                match supportPhase with
-                | "preview" ->     indicator "Preview" "border-black"
-                | "current" ->     indicator "Current" "green"
-                | "lts" ->         indicator "Long Term Support" "yellow"
-                | "eol" ->         indicator "End of Life" "red"
-                | "maintenance" -> indicator "Maintenance" "yellow"
-                | t -> indicatorSymb [ str "?" ] t "border-black"
-
             div [ _class "titled-container" ] [
                 h1 [] [ str ".NET Core" ]
                 div [ _class "table-wrapper" ] [
@@ -247,8 +254,36 @@ let template (site : StaticSite<Config, Page>) page =
                 ]
             ]
         | ChannelPage channel ->
+            let latestRuntimeRel = 
+                channel.Releases 
+                |> List.find (fun rel -> 
+                    rel.Runtime 
+                    |> Option.map (fun rt -> rt.Version = channel.LatestRuntime) 
+                    |> Option.defaultValue false)
+            let latestSdkRel = 
+                channel.Releases 
+                |> List.find (fun rel -> 
+                    allSdks rel 
+                    |> List.exists (fun sdk -> sdk.Version = channel.LatestSdk))
+
             div [ _class "titled-container" ] [
                 h1 [] [ strf "Channel %O" channel.ChannelVersion ]
+                ul [ _class "channel-props" ] [
+                    yield li [] [ supportIndicator channel.SupportPhase ]
+                    match channel.EolDate with 
+                    | Some eol -> yield li [] [ strf "End of Life on %a" date eol ]
+                    | None -> ()
+                    yield li [] [ a [ _href channel.LifecyclePolicy ] [ str "Lifecycle Policy" ] ]
+                    yield li [] [ 
+                        str "Latest runtime: " 
+                        a [ _href (releaseUrl channel latestRuntimeRel) ] [ strf "%O" (channel.LatestRuntime |> Version.simplify) ]
+                    ]
+                    yield li [] [ 
+                        strf "Latest SDK: " 
+                        a [ _href (releaseUrl channel latestSdkRel) ] [ strf "%O" (channel.LatestSdk |> Version.simplify) ]
+                    ]
+                ]
+                h2 [] [ str "Releases" ]
                 div [ _class "table-wrapper" ] [
                     table [ _class "overview-table releases-table" ] [
                         thead [] [ tr [] [

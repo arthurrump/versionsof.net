@@ -27,6 +27,7 @@ body > #background {
 /* General styles */
 a {
     text-decoration: none;
+    color: #0078d4;
 }
 
     a:hover {
@@ -253,6 +254,21 @@ a {
         color: #dc3545;
     }
 
+/* Channel page */
+ul.channel-props {
+    list-style-type: none;
+    display: flex;
+    flex-flow: row wrap;
+    justify-content: center;
+    padding: 0;
+}
+
+    ul.channel-props > li {
+        background: #fff;
+        padding: .6rem;
+        margin: .3rem;
+    }
+
 /* Release notes */    
 .release-notes article {
     padding: 2.6rem;
@@ -268,10 +284,6 @@ a {
     overflow-wrap: break-word;
     word-break: break-word;
 }
-
-    .text a {
-        color: #0078d4;
-    }
 
     .text pre {
         overflow: auto;
