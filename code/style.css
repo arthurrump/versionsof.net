@@ -263,8 +263,8 @@ a {
         color: #dc3545;
     }
 
-/* Channel page */
-ul.channel-props {
+/* Channel and Release page */
+ul.props-list {
     list-style-type: none;
     display: flex;
     flex-flow: row wrap;
@@ -272,11 +272,24 @@ ul.channel-props {
     padding: 0;
 }
 
-    ul.channel-props > li {
+    ul.props-list > li {
         background: #fff;
         padding: .6rem;
         margin: .3rem;
     }
+
+section ul.props-list {
+    margin-top: 0;
+    justify-content: flex-start;
+}
+
+    section ul.props-list > li {
+        margin: 0 .6rem .6rem 0;
+    }
+
+section h2 {
+    margin-bottom: .3rem;
+}
 
 /* Release notes */    
 .release-notes article {

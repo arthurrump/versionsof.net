@@ -268,7 +268,7 @@ let template (site : StaticSite<Config, Page>) page =
 
             div [ _class "inner-container" ] [
                 h1 [ _class "inner-spaced" ] [ strf "Channel %O" channel.ChannelVersion ]
-                ul [ _class "channel-props" ] [
+                ul [ _class "props-list" ] [
                     yield li [] [ supportIndicator channel.SupportPhase ]
                     match channel.EolDate with 
                     | Some eol -> yield li [] [ strf "End of Life on %a" date eol ]
@@ -329,16 +329,37 @@ let template (site : StaticSite<Config, Page>) page =
                 ]
 
             div [ _class "inner-container" ] [
-                h1 [ _class "inner-spaced" ] [ strf "Release %O" rel.ReleaseVersion ]
-                ul [ _class "inner-spaced" ] [
-                    yield li [] [ strf "Release date: %a" date rel.ReleaseDate ]
-                    yield match rel.Runtime with 
-                          | Some r -> li [] [ strf "Runtime %O" r.Version ] 
-                          | None -> li [] [ strf "No runtime" ]
-                    for sdk in allSdks rel ->
-                        li [] [ strf "SDK %O" sdk.Version ]
+                yield h1 [ _class "inner-spaced" ] [ strf "Release %O" rel.ReleaseVersion ]
+                yield ul [ _class "props-list" ] [
+                    yield li [] [ strf "Released on %a" date rel.ReleaseDate ]
+                    match rel.Runtime with 
+                    | Some rt -> yield li [] [ strf "Runtime %O" rt.Version ] 
+                    | None -> ()
+                    for sdk in allSdks rel -> li [] [ strf "SDK %O" sdk.Version ]
+                    match rel.AspnetcoreRuntime with
+                    | Some asp -> yield li [] [ strf "ASP.NET Runtime %O" asp.Version ]
+                    | None -> ()
+                    if rel.Security then yield li [] [ indicatorSymb [ str "!" ] "Security" "border-red" ]
                 ]
-                div [ _class "release-notes" ] [
+                for sdk in allSdks rel do
+                    let props = 
+                        [ match sdk.VsVersion with Some v -> yield li [] [ strf "Visual Studio %O" v ] | _ -> ()
+                          match sdk.CsharpVersion with Some v -> yield li [] [ strf "C# %O" v ] | _ -> ()
+                          match sdk.FsharpVersion with Some v -> yield li [] [ strf "F# %O" v ] | _ -> ()
+                          match sdk.VbVersion with Some v -> yield li [] [ strf "VB %O" v ] | _ -> () ]
+                    if not (props |> List.isEmpty) then
+                        yield section [ _class "inner-spaced" ] [
+                            h2 [] [ strf "SDK %O" sdk.Version ]
+                            ul [ _class "props-list" ] props
+                        ]
+                if not (rel.CveList |> List.isEmpty) then
+                    yield section [ _class "inner-spaced" ] [
+                        h2 [] [ str "Security" ]
+                        ul [ _class "props-list" ] [
+                            for cve in rel.CveList -> li [] [ a [ _href cve.CveUrl ] [ str cve.CveId ] ]
+                        ]
+                    ]
+                yield div [ _class "release-notes" ] [
                     yield h2 [ _class "inner-spaced" ] [ str "Release notes" ]
                     match releaseAndNotes.ReleaseNotesMarkdown with
                     | Some md ->
@@ -353,7 +374,7 @@ let template (site : StaticSite<Config, Page>) page =
                                   strf "No release notes available for %O" rel.ReleaseVersion 
                                 ]
                 ]
-                div [ _class "inner-spaced downloads" ] [
+                yield div [ _class "inner-spaced downloads" ] [
                     yield h2 [] [ str "Downloads" ]
                     yield div [ _class "files-container" ] [
                         match rel.Runtime with
