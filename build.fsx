@@ -169,7 +169,7 @@ let template (site : StaticSite<Config, Page>) page =
 
     let titleText =
         match page.Content with
-        | ChannelsOverview _ -> "Channels"
+        | ChannelsOverview _ -> ".NET Core"
         | ChannelPage ch -> sprintf "Channel %O" ch.ChannelVersion
         | ReleasePage rel -> sprintf "Release %O" rel.Release.ReleaseVersion
         | ErrorPage (code, text) -> sprintf "%s: %s" code text
@@ -178,9 +178,9 @@ let template (site : StaticSite<Config, Page>) page =
         match page.Content with
         | ChannelsOverview _ | ErrorPage _ -> []
         | ChannelPage _ -> 
-            [ ("/", "Channels") ]
+            [ ("/", ".NET Core") ]
         | ReleasePage rel -> 
-            [ ("/", "Channels"); (channelUrl rel.Channel, sprintf "Channel %O" rel.Channel.ChannelVersion) ]
+            [ ("/", ".NET Core"); (channelUrl rel.Channel, sprintf "Channel %O" rel.Channel.ChannelVersion) ]
         |> List.map (fun (url, title) -> [ a [ _href url ] [ str title ]; span [ _class "sep" ] [ str "/" ] ])
         |> List.concat
         |> div [ _id "breadcrumbs" ]
@@ -207,7 +207,7 @@ let template (site : StaticSite<Config, Page>) page =
                 | t -> indicatorSymb [ str "?" ] t "border-black"
 
             div [ _class "titled-container" ] [
-                h1 [] [ str "Channels" ]
+                h1 [] [ str ".NET Core" ]
                 table [ _class "channels-table" ] [ 
                     thead [] [ tr [] [
                         th [] [ str "Channel" ]
@@ -217,7 +217,7 @@ let template (site : StaticSite<Config, Page>) page =
                         th [] [ str "End of Life date" ]
                     ] ]
                     tbody [] [
-                        for ch in channels -> tr [] [ 
+                        for ch in channels -> tr [ _onclick (sprintf "location.pathname = '%s';" (channelUrl ch)) ] [ 
                             td [ _class "title" ] [ a [ _href (channelUrl ch) ] [ strf "%O" ch.ChannelVersion ] ]
                             td [ _class "support" ] [ supportIndicator ch.SupportPhase ]
                             td [ _class "latest-rel" ] [ 
@@ -338,7 +338,7 @@ let template (site : StaticSite<Config, Page>) page =
         body [ ] [ 
             header [ _id "main-header" ] [
                 div [ _class "container" ] [
-                    span [ _id "title" ] [ a [ _href "/" ] [ str "Versions of .NET Core" ] ]
+                    span [ _id "title" ] [ a [ _href "/" ] [ str "Versions of .NET" ] ]
                 ]
             ]
             div [ _id "background" ] [ 

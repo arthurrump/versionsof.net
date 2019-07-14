@@ -96,6 +96,10 @@ a {
         background: #fff;
     }
 
+    .channels-table tbody tr {
+        cursor: pointer;
+    }
+
     .channels-table td, .channels-table th {
         display: table-cell;
         padding: .6rem;
