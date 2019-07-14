@@ -161,7 +161,7 @@ let parseConfig config =
 ///////////
 let template (site : StaticSite<Config, Page>) page = 
     let _property = XmlEngine.attr "property"
-    let date () (d : DateTime) = d.ToString "yyyy-MM-dd"
+    let date () (d : DateTime) = d.ToLocalTime().ToString "yyyy-MM-dd" 
 
     let mdPipeline =
         MarkdownPipelineBuilder()
