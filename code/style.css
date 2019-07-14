@@ -130,22 +130,48 @@ a {
         }
 
             .channels-table tbody tr {
-                display: flex;
-                flex-flow: row wrap;
                 margin-bottom: .6rem;
+                padding: .6rem;
+                display: grid;
+                grid-template: repeat(4, auto) / repeat(2, auto);
             }
 
             .channels-table tbody td {
                 display: inline;
+                padding: 0;
             }
 
                 .channels-table tbody td.title {
                     font-size: 1.8rem;
                     font-weight: 600;
+                    grid-row: 1 / span 2;
+                    grid-column: 1 / span 1;
                 }
 
-                .channels-table tbody td.eol-date.unknown {
-                    display: none;
+                .channels-table tbody td.support {
+                    grid-row: 1 / span 1;
+                    grid-column: 2 / span 1;
+                    justify-self: end;
+                }
+
+                .channels-table tbody td.eol-date {
+                    grid-row: 2 / span 1;
+                    grid-column: 2 / span 1;
+                    justify-self: end;
+                }
+
+                    .channels-table tbody td.eol-date.unknown {
+                        display: none;
+                    }
+
+                .channels-table tbody td.latest-rel-date {
+                    grid-row: 3 / span 1;
+                    grid-column: 1 / span 2;
+                }
+
+                .channels-table tbody td.latest-rel {
+                    grid-row: 4 / span 1;
+                    grid-column: 1 / span 2;
                 }
 
         .channels-table .label {
@@ -166,7 +192,7 @@ a {
     border-radius: 100%;
     border: none;
     box-sizing: border-box;
-    margin: 0 0.5rem;
+    margin-right: 0.5rem;
     font-size: 0.85rem;
     line-height: 0.85rem;
     text-align: center;
@@ -176,6 +202,8 @@ a {
     @media (max-width: 700px) {
         .status-indicator {
             order: 2;
+            margin-right: 0;
+            margin-left: 0.5rem;
         }
     }
 
