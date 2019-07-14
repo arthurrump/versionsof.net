@@ -106,6 +106,10 @@ let tryGetReleaseNotes channels =
     |> Async.Parallel
     |> Async.map (List.ofArray >> Result.allOk >> Result.map Map.ofList)
 
+// Data Helpers
+///////////////
+let allSdks rel = rel.Sdk :: rel.Sdks |> List.distinct
+
 // Site structure and page creation
 ///////////////////////////////////
 type Page =
@@ -167,6 +171,14 @@ let template (site : StaticSite<Config, Page>) page =
             .UseSyntaxHighlighting()
             .Build()
 
+    let indicatorSymb symb text clas = 
+        div [ _class "status-box" ] [ 
+            span [ _class ("status-indicator " + clas)
+                   _title text ] 
+                 symb 
+            span [] [ str text ] 
+        ]
+
     let titleText =
         match page.Content with
         | ChannelsOverview _ -> ".NET Core"
@@ -186,14 +198,6 @@ let template (site : StaticSite<Config, Page>) page =
         |> div [ _id "breadcrumbs" ]
 
     let content = 
-        let indicatorSymb symb text clas = 
-            div [ _class "status-box" ] [ 
-                span [ _class ("status-indicator " + clas)
-                       _title text ] 
-                     symb 
-                span [] [ str text ] 
-            ]
-
         match page.Content with
         | ChannelsOverview channels -> 
             let supportIndicator supportPhase =
@@ -208,7 +212,7 @@ let template (site : StaticSite<Config, Page>) page =
 
             div [ _class "titled-container" ] [
                 h1 [] [ str ".NET Core" ]
-                table [ _class "channels-table" ] [ 
+                table [ _class "overview-table channels-table" ] [ 
                     thead [] [ tr [] [
                         th [] [ str "Channel" ]
                         th [] [ str "Support" ]
@@ -243,15 +247,40 @@ let template (site : StaticSite<Config, Page>) page =
         | ChannelPage channel ->
             div [ _class "titled-container" ] [
                 h1 [] [ strf "Channel %O" channel.ChannelVersion ]
-                ul [] [
-                    for rel in channel.Releases ->
-                        li [] [ a [ _href (releaseUrl channel rel) ] [ strf "%O (%a)" rel.ReleaseVersion date rel.ReleaseDate ] ]
+                table [ _class "overview-table releases-table" ] [
+                    thead [] [ tr [] [
+                        th [] [ str "Version" ]
+                        th [] [ str "Release date" ]
+                        th [] [ str "Runtime" ]
+                        th [] [ str "SDKs" ]
+                        th [] [ str "Security" ]
+                    ] ]
+                    tbody [] [
+                        for rel in channel.Releases -> tr [ _onclick (sprintf "location.pathname = '%s';" (releaseUrl channel rel)) ] [
+                            td [ _class "title" ] [ a [ _href (releaseUrl channel rel) ] [ strf "%O" rel.ReleaseVersion ] ]
+                            td [ _class "rel-date" ] [
+                                span [ _class "label" ] [ str "Released on " ]
+                                strf "%a" date rel.ReleaseDate
+                            ]
+                            td [ _class ("runtime" + if rel.Runtime.IsNone then " unknown" else "") ] [
+                                match rel.Runtime with
+                                | Some rt ->
+                                    yield span [ _class "label" ] [ str "Runtime: " ]
+                                    yield strf "%O" rt.Version
+                                | None ->
+                                    yield str "-"
+                            ]
+                            td [ _class "sdks" ] [
+                                span [ _class "label" ] [ str "SDKs: " ]
+                                str (allSdks rel |> List.map (fun sdk -> string sdk.Version) |> String.concat ", ")
+                            ]
+                            td [ _class "security" ] [ if rel.Security then yield indicatorSymb [ str "!" ] "Security" "border-red" ]
+                        ]
+                    ]
                 ]
             ]
         | ReleasePage releaseAndNotes ->
             let rel = releaseAndNotes.Release
-            let sdks = rel.Sdk :: rel.Sdks |> List.distinct
-
             let filesList title files =
                 div [] [
                     h3 [] [ str title ]
@@ -267,7 +296,7 @@ let template (site : StaticSite<Config, Page>) page =
                     yield match rel.Runtime with 
                           | Some r -> li [] [ strf "Runtime %O" r.Version ] 
                           | None -> li [] [ strf "No runtime" ]
-                    for sdk in sdks ->
+                    for sdk in allSdks rel ->
                         li [] [ strf "SDK %O" sdk.Version ]
                 ]
                 div [ _class "release-notes" ] [
@@ -285,7 +314,7 @@ let template (site : StaticSite<Config, Page>) page =
                     match rel.Runtime with
                     | Some rt -> yield filesList "Runtime" rt.Files
                     | None -> ()
-                    for sdk in sdks ->
+                    for sdk in allSdks rel ->
                         filesList (sprintf "SDK %O" sdk.Version) sdk.Files
                     match rel.AspnetcoreRuntime with
                     | Some asp -> yield filesList "ASP.NET Runtime" asp.Files

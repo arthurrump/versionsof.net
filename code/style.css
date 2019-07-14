@@ -86,21 +86,21 @@ a {
     }
 
 /* Channel list */
-.channels-table {
+.overview-table {
     border-spacing: 0 .2rem;
     table-layout: auto;
     width: 100%;
 }
 
-    .channels-table tr {
+    .overview-table tr {
         background: #fff;
     }
 
-    .channels-table tbody tr {
+    .overview-table tbody tr {
         cursor: pointer;
     }
 
-    .channels-table td, .channels-table th {
+    .overview-table td, .overview-table th {
         display: table-cell;
         padding: .6rem;
         line-height: 1.5;
@@ -110,77 +110,93 @@ a {
         text-align: left
     }
 
-    .channels-table .label {
+    .overview-table .label {
         display: none;
     }
 
-    .channels-table a {
+    .overview-table a {
         color: #000;
         text-decoration: none;
     }
 
 @media (max-width: 700px) {
-    .channels-table {
+    .overview-table {
         display: block;
     }
 
-        .channels-table thead {
+        .overview-table thead {
             display: none;
         }
 
-        .channels-table tbody {
+        .overview-table tbody {
             display: flex;
             flex-flow: column nowrap;
         }
 
-            .channels-table tbody tr {
+            .overview-table tbody tr {
                 margin-bottom: .6rem;
                 padding: .6rem;
                 display: grid;
                 grid-template: repeat(4, auto) / repeat(2, auto);
             }
 
-            .channels-table tbody td {
+            .overview-table tbody td {
                 display: inline;
                 padding: 0;
             }
 
-                .channels-table tbody td.title {
+                .overview-table tbody td.unknown {
+                    display: none;
+                }
+
+                .overview-table tbody td.title {
                     font-size: 1.8rem;
                     font-weight: 600;
                     grid-row: 1 / span 2;
                     grid-column: 1 / span 1;
                 }
 
-                .channels-table tbody td.support {
-                    grid-row: 1 / span 1;
-                    grid-column: 2 / span 1;
-                    justify-self: end;
-                }
-
-                .channels-table tbody td.eol-date {
-                    grid-row: 2 / span 1;
-                    grid-column: 2 / span 1;
-                    justify-self: end;
-                }
-
-                    .channels-table tbody td.eol-date.unknown {
-                        display: none;
-                    }
-
-                .channels-table tbody td.latest-rel-date {
-                    grid-row: 3 / span 1;
-                    grid-column: 1 / span 2;
-                }
-
-                .channels-table tbody td.latest-rel {
-                    grid-row: 4 / span 1;
-                    grid-column: 1 / span 2;
-                }
-
-        .channels-table .label {
+        .overview-table .label {
             display: inline;
         }
+        
+    /* Channels table fields layout */
+    .channels-table td.support {
+        grid-row: 1 / span 1;
+        grid-column: 2 / span 1;
+        justify-self: end;
+    }
+
+    .channels-table td.eol-date {
+        grid-row: 2 / span 1;
+        grid-column: 2 / span 1;
+        justify-self: end;
+    }
+
+    .channels-table td.latest-rel-date {
+        grid-row: 3 / span 1;
+        grid-column: 1 / span 2;
+    }
+
+    .channels-table td.latest-rel {
+        grid-row: 4 / span 1;
+        grid-column: 1 / span 2;
+    }
+
+    /* Releases table fields layout */
+    .releases-table tbody tr {
+        grid-template: repeat(5, auto) / repeat(2, auto);
+    }
+
+    .releases-table td.security {
+        grid-row: 1 / span 1;
+        grid-column: 2 / span 1;
+        justify-self: end;
+    }
+
+    .releases-table td.rel-date, .releases-table td.runtime, .releases-table td.sdks {
+        grid-column: 1 / span 2;
+    }
 }
 
 /* Status indicator */
