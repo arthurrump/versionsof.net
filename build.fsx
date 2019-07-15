@@ -4,6 +4,7 @@ nuget Fake.StaticGen
 nuget Fake.StaticGen.Html
 nuget Fake.StaticGen.Markdown
 nuget MarkdigExtensions.SyntaxHighlighting
+nuget MarkdigExtensions.UrlRewriter
 nuget Nett
 nuget NetCoreVersions //"
 #load "./.fake/build.fsx/intellisense.fsx"
@@ -220,12 +221,17 @@ let template (site : StaticSite<Config, Page>) page =
     let _property = XmlEngine.attr "property"
     let date () (d : DateTime) = d.ToLocalTime().ToString "yyyy-MM-dd" 
 
-    let mdPipeline =
+    let mdPipeline (url : string) =
         MarkdownPipelineBuilder()
             .UsePipeTables()
             .UseAutoLinks()
             .UseAutoIdentifiers(Extensions.AutoIdentifiers.AutoIdentifierOptions.GitHub)
             .UseSyntaxHighlighting()
+            .UseLinkUrlRewrite(fun link -> 
+                if Uri.IsWellFormedUriString(link.Url, UriKind.Absolute) || link.Url.StartsWith("#") then
+                    link.Url
+                else
+                    url.Substring(0, url.LastIndexOf('/')) + "/" + link.Url)
             .Build()
 
     let indicatorSymb symb text clas = 
@@ -432,7 +438,7 @@ let template (site : StaticSite<Config, Page>) page =
                             h2 [] [ str "Release notes" ]
                             span [] [ str "("; a [ _href rel.ReleaseNotes.Value ] [ str "Source" ]; str ")" ]
                         ]
-                        yield article [ _class "text" ] [ rawText (Markdown.ToHtml(md, mdPipeline)) ]
+                        yield article [ _class "text" ] [ rawText (Markdown.ToHtml(md, mdPipeline rel.ReleaseNotes.Value)) ]
                     | None -> 
                         yield h2 [ _class "inner-spaced" ] [ str "Release notes" ]
                         match rel.ReleaseNotes with
