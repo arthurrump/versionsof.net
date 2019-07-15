@@ -117,12 +117,36 @@ let tryGetReleaseNotes channels =
 ///////////////
 let allSdks rel = rel.Sdk :: rel.Sdks |> List.distinct
 
+let getLatestRuntimeRel channel = 
+    channel.Releases 
+    |> List.find (fun rel -> 
+        rel.Runtime 
+        |> Option.map (fun rt -> rt.Version = channel.LatestRuntime) 
+        |> Option.defaultValue false)
+
+let getLatestSdkRel channel = 
+    channel.Releases 
+    |> List.find (fun rel -> 
+        allSdks rel 
+        |> List.exists (fun sdk -> sdk.Version = channel.LatestSdk))
+
 // Site structure and page creation
 ///////////////////////////////////
-type Page =
+type CoreInfo =
+    { LatestRuntime : Version
+      LatestRuntimeUrl : Url
+      LatestSdk : Version
+      LatestSdkUrl : Url
+      PrimaryChannels : Channel list }
+
+type CorePage =
     | ChannelsOverview of Channel list
     | ChannelPage of Channel
     | ReleasePage of {| Channel : Channel; Release : Release; ReleaseNotesMarkdown : string option |}
+
+type Page =
+    | HomePage of CoreInfo
+    | CorePage of CorePage
     | ErrorPage of code: string * text: string
 
 // TODO: index.html should not be needed here, fix in Fake.StaticGen
@@ -130,7 +154,7 @@ let channelUrl ch = sprintf "/core/%O/index.html" ch.ChannelVersion
 let releaseUrl ch rel = sprintf "/core/%O/%O/index.html" ch.ChannelVersion rel.ReleaseVersion
 
 let channelsToPages channels releaseNotesMap =
-    [ yield { Url = "/"; Content = ChannelsOverview channels }
+    [ yield { Url = "/core/"; Content = ChannelsOverview channels }
       for ch in channels do
         yield { Url = channelUrl ch; Content = ChannelPage ch }
         for rel in ch.Releases do
@@ -138,16 +162,42 @@ let channelsToPages channels releaseNotesMap =
                     Content = ReleasePage {| Channel = ch
                                              Release = rel
                                              ReleaseNotesMarkdown = releaseNotesMap |> Map.tryFind rel.ReleaseNotes |} } ]
+    |> List.map (fun cp -> { Url = cp.Url; Content = CorePage cp.Content })
+
+let getHomePage channels =
+    let current = channels |> List.find (fun ch -> ch.SupportPhase = "current")
+    let coreInfo =
+        { LatestRuntime = current.LatestRuntime
+          LatestRuntimeUrl = releaseUrl current (getLatestRuntimeRel current)
+          LatestSdk = current.LatestSdk
+          LatestSdkUrl = releaseUrl current (getLatestSdkRel current)
+          PrimaryChannels = channels |> List.filter (fun ch -> ch.SupportPhase <> "eol") }
+    { Url = "/"; Content = HomePage coreInfo }
 
 let tryGetPages indexUrl = 
     async {
         match! tryGetChannels indexUrl with
         | Ok channels ->
             let! releaseNotesMap = tryGetReleaseNotes channels
-            return Result.map (channelsToPages channels) releaseNotesMap
+            let corePages = Result.map (channelsToPages channels) releaseNotesMap
+            let homePage = getHomePage channels
+            return Result.map (fun cps -> homePage::cps) corePages
         | Error e -> 
             return Error e
     }
+
+let getBreadcrumbs = 
+    let home = (".NET", "/")
+    function
+    | HomePage _ -> []
+    | CorePage x ->
+        let ov = (".NET Core", "/core/")
+        home ::
+        match x with
+        | ChannelsOverview _ -> []
+        | ChannelPage _ -> [ ov ]
+        | ReleasePage rel -> [ ov; (sprintf "Channel %O" rel.Channel.ChannelVersion, channelUrl rel.Channel) ]
+    | ErrorPage _ -> []
 
 // Site configuration
 /////////////////////
@@ -198,74 +248,84 @@ let template (site : StaticSite<Config, Page>) page =
 
     let titleText =
         match page.Content with
-        | ChannelsOverview _ -> ".NET Core"
-        | ChannelPage ch -> sprintf "Channel %O" ch.ChannelVersion
-        | ReleasePage rel -> sprintf "Release %O" rel.Release.ReleaseVersion
-        | ErrorPage (code, text) -> sprintf "%s: %s" code text
+        | HomePage _ -> ""
+        | CorePage (ChannelsOverview _) -> ".NET Core - "
+        | CorePage (ChannelPage ch) -> sprintf "Channel %O - .NET Core - " ch.ChannelVersion
+        | CorePage (ReleasePage rel) -> sprintf "Release %O - .NET Core - " rel.Release.ReleaseVersion
+        | ErrorPage (code, text) -> sprintf "%s: %s - " code text
 
     let breadcrumbs =
-        match page.Content with
-        | ChannelsOverview _ | ErrorPage _ -> []
-        | ChannelPage _ -> 
-            [ ("/", ".NET Core") ]
-        | ReleasePage rel -> 
-            [ ("/", ".NET Core"); (channelUrl rel.Channel, sprintf "Channel %O" rel.Channel.ChannelVersion) ]
-        |> List.map (fun (url, title) -> [ a [ _href url ] [ str title ]; span [ _class "sep" ] [ str "/" ] ])
+        getBreadcrumbs page.Content
+        |> List.map (fun (title, url) -> [ a [ _href url ] [ str title ]; span [ _class "sep" ] [ str "/" ] ])
         |> List.concat
         |> div [ _id "breadcrumbs" ]
 
-    let content = 
-        match page.Content with
-        | ChannelsOverview channels -> 
-            div [ _class "inner-container" ] [
-                h1 [ _class "inner-spaced" ] [ str ".NET Core" ]
-                div [ _class "table-wrapper" ] [
-                    table [ _class "overview-table channels-table" ] [ 
-                        thead [] [ tr [] [
-                            th [] [ str "Channel" ]
-                            th [] [ str "Support" ]
-                            th [] [ str "Latest release" ]
-                            th [] [ str "Latest release date" ]
-                            th [] [ str "End of Life date" ]
-                        ] ]
-                        tbody [] [
-                            for ch in channels -> tr [ _onclick (sprintf "location.pathname = '%s';" (channelUrl ch)) ] [ 
-                                td [ _class "title" ] [ a [ _href (channelUrl ch) ] [ strf "%O" ch.ChannelVersion ] ]
-                                td [ _class "support" ] [ supportIndicator ch.SupportPhase ]
-                                td [ _class "latest-rel" ] [ 
-                                    span [ _class "label" ] [ str "Latest release: " ]
-                                    strf "%O" ch.LatestRelease 
-                                ]
-                                td [ _class "latest-rel-date" ] [ 
-                                    span [ _class "label" ] [ str "Last updated on " ]
-                                    strf "%a" date ch.LatestReleaseDate 
-                                ]
-                                td [ _class ("eol-date" + if ch.EolDate.IsNone then " unknown" else "") ] [ 
-                                    match ch.EolDate with 
-                                    | Some d ->
-                                        yield span [ _class "label" ] [ str "EOL: " ] 
-                                        yield strf "%a" date d 
-                                    | None -> 
-                                        yield str "-" 
-                                ]
-                            ]
+    let channelsTable channels =
+        div [ _class "table-wrapper" ] [
+            table [ _class "overview-table channels-table" ] [ 
+                thead [] [ tr [] [
+                    th [] [ str "Channel" ]
+                    th [] [ str "Support" ]
+                    th [] [ str "Latest release" ]
+                    th [] [ str "Latest release date" ]
+                    th [] [ str "End of Life date" ]
+                ] ]
+                tbody [] [
+                    for ch in channels -> tr [ _onclick (sprintf "location.pathname = '%s';" (channelUrl ch)) ] [ 
+                        td [ _class "title" ] [ a [ _href (channelUrl ch) ] [ strf "%O" ch.ChannelVersion ] ]
+                        td [ _class "support" ] [ supportIndicator ch.SupportPhase ]
+                        td [ _class "latest-rel" ] [ 
+                            span [ _class "label" ] [ str "Latest release: " ]
+                            strf "%O" ch.LatestRelease 
+                        ]
+                        td [ _class "latest-rel-date" ] [ 
+                            span [ _class "label" ] [ str "Last updated on " ]
+                            strf "%a" date ch.LatestReleaseDate 
+                        ]
+                        td [ _class ("eol-date" + if ch.EolDate.IsNone then " unknown" else "") ] [ 
+                            match ch.EolDate with 
+                            | Some d ->
+                                yield span [ _class "label" ] [ str "EOL: " ] 
+                                yield strf "%a" date d 
+                            | None -> 
+                                yield str "-" 
                         ]
                     ]
                 ]
             ]
-        | ChannelPage channel ->
-            let latestRuntimeRel = 
-                channel.Releases 
-                |> List.find (fun rel -> 
-                    rel.Runtime 
-                    |> Option.map (fun rt -> rt.Version = channel.LatestRuntime) 
-                    |> Option.defaultValue false)
-            let latestSdkRel = 
-                channel.Releases 
-                |> List.find (fun rel -> 
-                    allSdks rel 
-                    |> List.exists (fun sdk -> sdk.Version = channel.LatestSdk))
+        ]
 
+    let content = 
+        match page.Content with
+        | HomePage coreInfo ->
+            div [ _class "inner-container" ] [
+                section [] [
+                    h1 [ _class "inner-spaced" ] [ a [ _href "/core/" ] [ str ".NET Core" ] ]
+                    div [ _class "inner-spaced latest-versions" ] [
+                        div [] [ 
+                            span [ _class "version" ] [ 
+                                a [ _href coreInfo.LatestRuntimeUrl ] [ strf "%O" coreInfo.LatestRuntime ]
+                            ]
+                            span [ _class "label" ] [ str "Latest runtime" ]
+                        ]
+                        div [] [ 
+                            span [ _class "version" ] [
+                                a [ _href coreInfo.LatestSdkUrl ] [ strf "%O" coreInfo.LatestSdk ]
+                            ]
+                            span [ _class "label" ] [ str "Latest SDK" ]
+                        ]
+                    ]
+                    h2 [ _class "inner-spaced" ] [ str "Latest channels" ]
+                    channelsTable coreInfo.PrimaryChannels
+                    a [ _class "inner-spaced"; _href "/core/" ] [ str "See all channels >" ]
+                ]
+            ]
+        | CorePage (ChannelsOverview channels) -> 
+            div [ _class "inner-container" ] [
+                h1 [ _class "inner-spaced" ] [ str ".NET Core" ]
+                channelsTable channels
+            ]
+        | CorePage (ChannelPage channel) ->
             div [ _class "inner-container" ] [
                 h1 [ _class "inner-spaced" ] [ strf "Channel %O" channel.ChannelVersion ]
                 ul [ _class "props-list" ] [
@@ -276,11 +336,15 @@ let template (site : StaticSite<Config, Page>) page =
                     yield li [] [ a [ _href channel.LifecyclePolicy ] [ str "Lifecycle Policy" ] ]
                     yield li [] [ 
                         str "Latest runtime: " 
-                        a [ _href (releaseUrl channel latestRuntimeRel) ] [ strf "%O" (channel.LatestRuntime |> Version.simplify) ]
+                        a [ _href (releaseUrl channel (getLatestRuntimeRel channel)) ] [ 
+                            strf "%O" (channel.LatestRuntime |> Version.simplify) 
+                        ]
                     ]
                     yield li [] [ 
                         strf "Latest SDK: " 
-                        a [ _href (releaseUrl channel latestSdkRel) ] [ strf "%O" (channel.LatestSdk |> Version.simplify) ]
+                        a [ _href (releaseUrl channel (getLatestSdkRel channel)) ] [ 
+                            strf "%O" (channel.LatestSdk |> Version.simplify) 
+                        ]
                     ]
                 ]
                 h2 [ _class "inner-spaced" ] [ str "Releases" ]
@@ -318,7 +382,7 @@ let template (site : StaticSite<Config, Page>) page =
                     ]
                 ]
             ]
-        | ReleasePage releaseAndNotes ->
+        | CorePage (ReleasePage releaseAndNotes) ->
             let rel = releaseAndNotes.Release
             let filesList title files =
                 div [ _class "files-list" ] [
@@ -363,7 +427,7 @@ let template (site : StaticSite<Config, Page>) page =
                     yield h2 [ _class "inner-spaced" ] [ str "Release notes" ]
                     match releaseAndNotes.ReleaseNotesMarkdown with
                     | Some md ->
-                          //yield a [ _href rel.ReleaseNotes.Value ] [ str "Source" ]
+                          //yield a [ _href rel.ReleaseNotes.Value ] [ str "Source" ] // TODO: add back the link
                           yield article [ _class "text" ] [ rawText (Markdown.ToHtml(md, mdPipeline)) ]
                     | None -> match rel.ReleaseNotes with
                               | Some url -> yield p [ _class "text" ] [ 
@@ -416,7 +480,7 @@ let template (site : StaticSite<Config, Page>) page =
     html [] [
         head [ ] [ 
             meta [ _httpEquiv "Content-Type"; _content "text/html; charset=utf-8" ]
-            title [] [ strf "%s - %s" titleText site.Config.Title ]
+            title [] [ strf "%s%s" titleText site.Config.Title ]
             link [ _rel "stylesheet"; _type "text/css"; _href "/style.css" ]
             meta [ _name "title"; _content titleText ]
             meta [ _name "description"; _content site.Config.Description ]
@@ -434,7 +498,7 @@ let template (site : StaticSite<Config, Page>) page =
         body [ ] [ 
             header [ _id "main-header" ] [
                 div [ _class "container" ] [
-                    span [ _id "title" ] [ a [ _href "/" ] [ str "Versions of .NET" ] ]
+                    span [ _id "title" ] [ a [ _href "/" ] [ str site.Config.Title ] ]
                 ]
             ]
             div [ _id "background" ] [ 

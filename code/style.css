@@ -67,7 +67,6 @@ a {
     font-size: 1.5rem;
     font-weight: 600;
     margin-right: 2.5rem;
-    white-space: nowrap;
 }
 
     #title a {
@@ -81,7 +80,7 @@ a {
 }
 
     #breadcrumbs a {
-        color: #000;
+        color: #171717;
     }
 
     #breadcrumbs .sep {
@@ -95,6 +94,40 @@ a {
         }
     }
 
+/* Home page */
+section h1 {
+    font-size: 2rem;
+    margin-bottom: .2rem;
+}
+
+    section h1 a {
+        color: #171717;
+    }
+
+.latest-versions {
+    display: flex;
+    flex-flow: row wrap;
+    justify-content: space-around;
+}
+
+    .latest-versions a {
+        color: #171717;
+        text-decoration: none;
+    }
+
+    .latest-versions > div {
+        display: flex;
+        flex-flow: column nowrap;
+        justify-content: center;
+        text-align: center;
+    }
+
+    .latest-versions .version {
+        font-size: 6rem;
+        font-weight: 600;
+        margin-bottom: .6rem;
+    }
+
 /* Channel and releases tables */
 .table-wrapper {
     overflow-y: auto;
@@ -104,6 +137,7 @@ a {
     border-spacing: 0 .2rem;
     table-layout: auto;
     width: 100%;
+    margin-bottom: .6rem;
 }
 
     .overview-table tr {
@@ -136,6 +170,7 @@ a {
 @media (max-width: 700px) {
     .overview-table {
         display: block;
+        margin-bottom: 0;
     }
 
         .overview-table thead {
