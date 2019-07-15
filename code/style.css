@@ -343,12 +343,23 @@ section h2 {
 
 .release-notes > p {
     padding: .6rem 2.6rem;
+    margin: 0;
 }
 
     @media (max-width: 700px) {
         .release-notes > p {
             padding: .6rem;
         }
+    }
+
+.release-notes .header-box {
+    display: flex;
+    flex-flow: row wrap;
+    align-items: baseline;
+}
+
+    .release-notes .header-box span {
+        margin-left: 1em;
     }
 
 /* Long form text */

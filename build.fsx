@@ -407,7 +407,9 @@ let template (site : StaticSite<Config, Page>) page =
                 ]
                 for sdk in allSdks rel do
                     let props = 
-                        [ match sdk.VsVersion with Some v -> yield li [] [ strf "Visual Studio %O" v ] | _ -> ()
+                        [ match sdk.VsVersion with 
+                          | Some v -> yield li [] [ strf "Visual Studio %O" v ] 
+                          | _ -> match sdk.VsSupport with Some v -> yield li [] [ str v ] | _ -> ()
                           match sdk.CsharpVersion with Some v -> yield li [] [ strf "C# %O" v ] | _ -> ()
                           match sdk.FsharpVersion with Some v -> yield li [] [ strf "F# %O" v ] | _ -> ()
                           match sdk.VbVersion with Some v -> yield li [] [ strf "VB %O" v ] | _ -> () ]
@@ -423,22 +425,26 @@ let template (site : StaticSite<Config, Page>) page =
                             for cve in rel.CveList -> li [] [ a [ _href cve.CveUrl ] [ str cve.CveId ] ]
                         ]
                     ]
-                yield div [ _class "release-notes" ] [
-                    yield h2 [ _class "inner-spaced" ] [ str "Release notes" ]
+                yield section [ _class "release-notes" ] [
                     match releaseAndNotes.ReleaseNotesMarkdown with
                     | Some md ->
-                          //yield a [ _href rel.ReleaseNotes.Value ] [ str "Source" ] // TODO: add back the link
-                          yield article [ _class "text" ] [ rawText (Markdown.ToHtml(md, mdPipeline)) ]
-                    | None -> match rel.ReleaseNotes with
-                              | Some url -> yield p [ _class "text" ] [ 
-                                  str "These release notes could not be displayed. Find them here: "
-                                  a [ _href url ] [ str "Release notes" ] 
-                                ]
-                              | None -> yield p [ _class "text" ] [ 
-                                  strf "No release notes available for %O" rel.ReleaseVersion 
-                                ]
+                        yield div [ _class "header-box inner-spaced" ] [
+                            h2 [] [ str "Release notes" ]
+                            span [] [ str "("; a [ _href rel.ReleaseNotes.Value ] [ str "Source" ]; str ")" ]
+                        ]
+                        yield article [ _class "text" ] [ rawText (Markdown.ToHtml(md, mdPipeline)) ]
+                    | None -> 
+                        yield h2 [ _class "inner-spaced" ] [ str "Release notes" ]
+                        match rel.ReleaseNotes with
+                        | Some url -> yield p [ _class "text" ] [ 
+                            str "These release notes could not be displayed. Find them here: "
+                            a [ _href url ] [ str "Release notes" ] 
+                          ]
+                        | None -> yield p [ _class "text" ] [ 
+                            strf "No release notes available for %O" rel.ReleaseVersion 
+                          ]
                 ]
-                yield div [ _class "inner-spaced downloads" ] [
+                yield section [ _class "inner-spaced downloads" ] [
                     yield h2 [] [ str "Downloads" ]
                     yield div [ _class "files-container" ] [
                         match rel.Runtime with
