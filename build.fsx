@@ -151,8 +151,8 @@ type Page =
     | ErrorPage of code: string * text: string
 
 // TODO: index.html should not be needed here, fix in Fake.StaticGen
-let channelUrl ch = sprintf "/core/%O/index.html" ch.ChannelVersion
-let releaseUrl ch rel = sprintf "/core/%O/%O/index.html" ch.ChannelVersion rel.ReleaseVersion
+let channelUrl ch = sprintf "/core/%O/" ch.ChannelVersion
+let releaseUrl ch rel = sprintf "/core/%O/%O/" ch.ChannelVersion rel.ReleaseVersion
 
 let channelsToPages channels releaseNotesMap =
     [ yield { Url = "/core/"; Content = ChannelsOverview channels }
@@ -227,7 +227,7 @@ let template (site : StaticSite<Config, Page>) page =
             .UseAutoLinks()
             .UseAutoIdentifiers(Extensions.AutoIdentifiers.AutoIdentifierOptions.GitHub)
             .UseSyntaxHighlighting()
-            .UseLinkUrlRewrite(fun link -> 
+            .UseUrlRewriter(fun link -> 
                 if Uri.IsWellFormedUriString(link.Url, UriKind.Absolute) || link.Url.StartsWith("#") then
                     link.Url
                 else
