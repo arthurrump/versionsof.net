@@ -31,6 +31,7 @@ jobs:
     artifact: public
 
 - deployment: netlify
+  displayName: "Netlify Deploy"
   pool:
     vmImage: "ubuntu-16.04"
   environment: netlify-prod
