@@ -517,7 +517,7 @@ let template (site : StaticSite<Config, Page>) page =
   })();
 </script>"""
 
-    html [] [
+    html [ _lang "en" ] [
         head [ ] [ 
             meta [ _httpEquiv "Content-Type"; _content "text/html; charset=utf-8" ]
             title [] [ strf "%s%s" titleText site.Config.Title ]
@@ -531,9 +531,10 @@ let template (site : StaticSite<Config, Page>) page =
             link [ _rel "canonical"; _href (site.AbsoluteUrl page.Url) ]
             meta [ _property "og:url"; _content (site.AbsoluteUrl page.Url) ]
             meta [ _property "og:site_name"; _content site.Config.Title ] 
-            meta [ _property "og:title"; _content titleText ]
+            meta [ _property "og:title"; _content (titleText + site.Config.Title) ]
             meta [ _property "og:type"; _content "website" ]
-            meta [ _property "og:description"; _content site.Config.Description ]
+            meta [ _property "og:description"; _content (description + site.Config.Description) ]
+            meta [ _property "og:image"; _content "/logo.png" ]
             matomo
         ]
         body [ ] [ 
