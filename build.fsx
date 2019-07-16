@@ -260,6 +260,34 @@ let template (site : StaticSite<Config, Page>) page =
         | CorePage (ReleasePage rel) -> sprintf "Release %O - .NET Core - " rel.Release.ReleaseVersion
         | ErrorPage (code, text) -> sprintf "%s: %s - " code text
 
+    let keywords =
+        [ ".NET"; ".NET Version"; "dotnet" ] @
+        match page.Content with
+        | HomePage _ | ErrorPage _ -> []
+        | CorePage x -> 
+            [ ".NET Core" ] @
+            match x with
+            | ChannelsOverview _ -> []
+            | ChannelPage ch -> 
+                [ for s in [ ".NET"; ".NET Core"; ".NET channel"; ".NET Core channel"; "dotnet"; "dotnet channel" ] -> 
+                    sprintf "%s %O" s ch.ChannelVersion ]
+            | ReleasePage rel -> 
+                [ for s in [ ".NET"; ".NET Core"; ".NET Version"; ".NET Core Version"; "dotnet"; "dotnet version" ] -> 
+                    sprintf "%s %O" s rel.Release.ReleaseVersion ]
+
+    let description =
+        match page.Content with
+        | HomePage _ | ErrorPage _ -> 
+            ""
+        | CorePage (ChannelsOverview _) -> 
+            "Channels of .NET Core. "
+        | CorePage (ChannelPage ch) -> 
+            sprintf "Channel %O of .NET Core, with latest release %O, latest runtime %O, latest SDK %O. " 
+                ch.ChannelVersion ch.LatestRelease ch.LatestRuntime ch.LatestSdk
+        | CorePage (ReleasePage rel) ->
+            sprintf "Release %O of .NET Core, released on %a. " 
+                rel.Release.ReleaseVersion date rel.Release.ReleaseDate
+
     let breadcrumbs =
         getBreadcrumbs page.Content
         |> List.map (fun (title, url) -> [ a [ _href url ] [ str title ]; span [ _class "sep" ] [ str "/" ] ])
@@ -495,7 +523,8 @@ let template (site : StaticSite<Config, Page>) page =
             title [] [ strf "%s%s" titleText site.Config.Title ]
             link [ _rel "stylesheet"; _type "text/css"; _href "/style.css" ]
             meta [ _name "title"; _content titleText ]
-            meta [ _name "description"; _content site.Config.Description ]
+            meta [ _name "description"; _content (description + site.Config.Description) ]
+            meta [ _name "keywords"; _content (keywords |> String.concat ",") ]
             meta [ _name "copyright"; _content (sprintf "Copyright %i %s" now.Year "Arthur Rump and .NET Foundation") ]
             meta [ _name "generator"; _content "Fake.StaticGen" ]
             meta [ _name "viewport"; _content "width=device-width, initial-scale=1" ]
