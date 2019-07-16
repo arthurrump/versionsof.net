@@ -4,18 +4,8 @@
 
 ## Building the website
 
-This site is built using [Fable](http://fable.io), which converts the F# code in this repo into JavaScript that runs in your browser. To get it working, you first have to get all dependencies:
+This site is built using [Fake.StaticGen](https://github.com/arthurrump/Fake.StaticGen), which is a toolset for generating static websites, built on the [FAKE](https://fake.build) build system. To build the site, you need the .NET Core SDK and `fake-cli` tool (`dotnet tool install fake-cli`). To generate the site, run
+
 ```
-npm install
-cd src
-dotnet restore
+fake build
 ```
-You can then run a webpack dev server to compile the site and see it in your browser:
-```
-dotnet fable webpack-dev-server
-```
-To compile the JavaScript bundle and put it in the folder `/public`, run
-```
-dotnet fable webpack
-```
-The public folder then contains a deployable version of the site.
