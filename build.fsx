@@ -563,6 +563,7 @@ let createStaticSite config pages =
     StaticSite.fromConfig "https://versionsof.net" config
     |> StaticSite.withFilesFromSources (!! "icons/*" --"icons/**/ignore/**/*") Path.GetFileName
     |> StaticSite.withFilesFromSources (!! "code/*") Path.GetFileName
+    |> StaticSite.withFilesFromSources (!! "rootfiles/*") Path.GetFileName
     |> StaticSite.withPages pages
     |> StaticSite.withPage (ErrorPage ("404", "Not Found")) "/404.html"
 
