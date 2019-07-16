@@ -46,7 +46,7 @@ jobs:
             customCommand: install netlify-cli
         - download: current
           artifact: public
-        - script: ./node-modules/.bin/netlify deploy --prod --dir $(Pipeline.Workspace)/public
+        - script: npx netlify deploy --prod --dir $(Pipeline.Workspace)/public
           env:
             NETLIFY_AUTH_TOKEN: $(Netlify.Token)
             NETLIFY_SITE_ID: $(Netlify.SiteId)
