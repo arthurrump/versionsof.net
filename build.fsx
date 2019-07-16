@@ -531,7 +531,7 @@ let template (site : StaticSite<Config, Page>) page =
 //////////////////
 let createStaticSite config pages =
     StaticSite.fromConfig "https://versionsof.net" config
-    |> StaticSite.withFilesFromSources (!! "icons/*") Path.GetFileName
+    |> StaticSite.withFilesFromSources (!! "icons/*" --"icons/**/ignore/**/*") Path.GetFileName
     |> StaticSite.withFilesFromSources (!! "code/*") Path.GetFileName
     |> StaticSite.withPages pages
     |> StaticSite.withPage (ErrorPage ("404", "Not Found")) "/404.html"
