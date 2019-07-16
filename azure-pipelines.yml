@@ -34,6 +34,7 @@ jobs:
   pool:
     vmImage: "ubuntu-16.04"
   environment: netlify-prod
+  dependsOn: [ build ]
   strategy:
     runOnce:
       deploy:
@@ -41,10 +42,10 @@ jobs:
         - task: Npm@1
           inputs:
             command: custom
-            customCommand: install -g netlify
+            customCommand: install netlify-cli
         - download: current
           artifact: public
-        - script: netlify deploy --prod --dir $(Pipeline.Workspace)/public
+        - script: ./node-modules/.bin/netlify deploy --prod --dir $(Pipeline.Workspace)/public
           env:
             NETLIFY_AUTH_TOKEN: $(Netlify.Token)
             NETLIFY_SITE_ID: $(Netlify.SiteId)
