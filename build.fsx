@@ -20,6 +20,7 @@ open Fake.IO.Globbing.Operators
 open Fake.StaticGen
 open Fake.StaticGen.Html
 open Fake.StaticGen.Html.ViewEngine
+open Fake.StaticGen.Html.ViewEngine.Accessibility
 open Fake.StaticGen.Markdown
 
 open System
@@ -584,6 +585,9 @@ let template (site : StaticSite<Config, Page>) page =
                 sprintf "Skipped release %O of Mono. " rel.Version
             | Stub ->
                 sprintf "Release %O of Mono. " rel.Version
+    
+    let navItem name url =
+        span [ _class "nav-item" ] [ a [ _href url ] [ str name ] ]
 
     let breadcrumbs =
         getBreadcrumbs page.Content
@@ -891,6 +895,27 @@ let template (site : StaticSite<Config, Page>) page =
   })();
 </script>"""
 
+    let iconList = set [ "md-close"; "md-menu" ]
+    let icon name = 
+        XmlEngine.tag "svg" [ _class "icon"; _ariaHidden "true" ] [ 
+            XmlEngine.tag "use" [ XmlEngine.attr "xlink:href" ("#icon-" + name) ] [] ]
+
+    let iconsCombined =
+        XmlEngine.tag "svg" [
+            XmlEngine.attr "xmlns" "http://www.w3.org/2000/svg"
+            _style "display: none;" 
+        ] (iconList 
+           |> Set.map (fun icon -> 
+                site.Files 
+                |> Seq.find (fun p -> p.Url |> Path.GetFileNameWithoutExtension = icon) 
+                |> fun p -> p.Content 
+                |> Encoding.UTF8.GetString
+                |> String.replace "xmlns=\"http://www.w3.org/2000/svg\"" ""
+                |> String.replace "<svg" ("<symbol id=\"icon-" + icon + "\"")
+                |> String.replace "</svg" "</symbol"
+                |> rawText)
+           |> Set.toList)
+
     html [ _lang "en" ] [
         head [ ] [ 
             meta [ _httpEquiv "Content-Type"; _content "text/html; charset=utf-8" ]
@@ -911,10 +936,25 @@ let template (site : StaticSite<Config, Page>) page =
             meta [ _property "og:image"; _content "/logo.png" ]
             matomo
         ]
-        body [ ] [ 
+        body [ ] [
+            iconsCombined 
             header [ _id "main-header" ] [
                 div [ _class "container" ] [
                     span [ _id "title" ] [ a [ _href "/" ] [ str site.Config.Title ] ]
+                    button [ _id "menu-toggle"
+                             _roleButton
+                             _ariaLabel "Menu"
+                             _onclick ("var img = document.querySelector('#menu-toggle > svg > use');"
+                                + "var nav = document.getElementById('main-nav');"
+                                + "if (nav.classList.contains('opened')) {"
+                                + "  nav.classList.remove('opened'); img.setAttribute('xlink:href', '#icon-md-menu'); }"
+                                + "else { nav.classList.add('opened'); img.setAttribute('xlink:href', '#icon-md-close'); }") ] [
+                        icon "md-menu"
+                    ]
+                    nav [ _id "main-nav" ] [
+                        navItem ".NET Core" "/core/"
+                        navItem "Mono" "/mono/"
+                    ]
                 ]
             ]
             div [ _id "background" ] [ 
@@ -938,6 +978,7 @@ let createStaticSite config pages files =
     |> StaticSite.withFilesFromSources (!! "icons/*" --"icons/**/ignore/**/*") Path.GetFileName
     |> StaticSite.withFilesFromSources (!! "code/*") Path.GetFileName
     |> StaticSite.withFilesFromSources (!! "rootfiles/*") Path.GetFileName
+    |> StaticSite.withFilesFromSources (!! "ionicons/*") (fun p -> "/icons/" + Path.GetFileName p)
     |> StaticSite.withPages pages
     |> StaticSite.withFiles files
     |> StaticSite.withPage (ErrorPage ("404", "Not Found")) "/404.html"
