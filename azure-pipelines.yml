@@ -1,8 +1,3 @@
-trigger:
-- master
-
-pr: none
-
 schedules:
 - cron: 0 */3 * * 1-5
   displayName: "Weekday Update"
@@ -35,6 +30,7 @@ jobs:
     artifact: public
 
 - deployment: netlify
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/master'))
   displayName: "Netlify Deploy"
   pool:
     vmImage: "ubuntu-16.04"
