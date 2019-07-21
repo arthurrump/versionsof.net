@@ -246,6 +246,11 @@ section h1 {
     .releases-table td.rel-date, .releases-table td.runtime, .releases-table td.sdks {
         grid-column: 1 / span 2;
     }
+
+    /* Mono Releases table fields layout */
+    .mono-table tbody tr {
+        grid-template: repeat(3, auto) / auto;
+    }
 }
 
 /* Status indicator */

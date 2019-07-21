@@ -194,7 +194,8 @@ let (|MonoReleaseDate|_|) = function
 type MonoRelease =
     { Version : Version
       ReleaseDate : MonoReleaseDate
-      Markdown : string }
+      Markdown : string
+      ReleaseNotesSource : Url }
 
 let ghFileDecoder =
     Decode.object (fun get ->
@@ -218,23 +219,25 @@ let yamlDecode =
     fun (text : string) ->
         deserializer.Deserialize<Collections.Generic.Dictionary<string, string>>(text)
 
-let tryParseMonoRelease text =
+let tryParseMonoRelease sourceUrl text =
     match Markdown.splitFrontmatter text with
     | (Some yaml, md) ->
         let fields = yamlDecode yaml
         match fields.["version"], fields.["releasedate"] with
         | Version.Version v, MonoReleaseDate d ->
-            Ok { Version = v; ReleaseDate = d; Markdown = md }
+            Ok { Version = v; ReleaseDate = d; Markdown = md; ReleaseNotesSource = sourceUrl }
         | _ -> 
-            Error (sprintf "Couldn't parse Mono release YAML: %s" yaml)
+            Error (sprintf "Couldn't parse Mono release %s" sourceUrl)
     | _ -> 
-        Error (sprintf "No frontmatter found in Mono release \"%s...\"" (text.Substring(0, 50)))
+        Error (sprintf "No frontmatter found in Mono release %s" sourceUrl)
 
 let tryGetMonoReleasesFromUrls urls =
     async {
         let! files =
             urls
-            |> List.map (downloadGh "text/plain" >> Async.map (Result.bind tryParseMonoRelease))
+            |> List.map (fun url ->
+                downloadGh "text/plain" url
+                |> Async.map (Result.bind (tryParseMonoRelease url)))
             |> Async.Parallel
         return files |> List.ofArray |> Result.allOk
     }
@@ -394,34 +397,58 @@ type CorePage =
     | ChannelPage of Channel
     | ReleasePage of {| Channel : Channel; Release : Release; ReleaseNotesMarkdown : string option |}
 
+type MonoInfo =
+    { LatestRelease : MonoRelease
+      ReleasesSubset : MonoRelease list }
+
+type MonoPage =
+    | ReleasesOverview of MonoRelease list
+    | ReleasePage of MonoRelease
+
 type Page =
-    | HomePage of CoreInfo
+    | HomePage of CoreInfo * MonoInfo
     | CorePage of CorePage
+    | MonoPage of MonoPage
     | ErrorPage of code: string * text: string
 
-let channelUrl ch = sprintf "/core/%O/" ch.ChannelVersion
-let releaseUrl ch rel = sprintf "/core/%O/%O/" ch.ChannelVersion rel.ReleaseVersion
+let coreChannelUrl ch = sprintf "/core/%O/" ch.ChannelVersion
+let coreReleaseUrl ch rel = sprintf "/core/%O/%O/" ch.ChannelVersion rel.ReleaseVersion
 
 let channelsToPages channels releaseNotesMap =
     [ yield { Url = "/core/"; Content = ChannelsOverview channels }
       for ch in channels do
-        yield { Url = channelUrl ch; Content = ChannelPage ch }
+        yield { Url = coreChannelUrl ch; Content = ChannelPage ch }
         for rel in ch.Releases do
-            yield { Url = releaseUrl ch rel
-                    Content = ReleasePage {| Channel = ch
-                                             Release = rel
-                                             ReleaseNotesMarkdown = releaseNotesMap |> Map.tryFind rel.ReleaseNotes |} } ]
+            yield { Url = coreReleaseUrl ch rel
+                    Content = CorePage.ReleasePage
+                        {| Channel = ch
+                           Release = rel
+                           ReleaseNotesMarkdown = releaseNotesMap |> Map.tryFind rel.ReleaseNotes |} } ]
     |> List.map (fun cp -> { Url = cp.Url; Content = CorePage cp.Content })
 
-let getHomePage channels =
-    let current = channels |> List.find (fun ch -> ch.SupportPhase = "current")
+let monoReleaseUrl rel = sprintf "/mono/%O/" rel.Version
+
+let monoReleasesToPages releases =
+    [ yield { Url = "/mono/"; Content = ReleasesOverview releases }
+      for rel in releases -> { Url = monoReleaseUrl rel; Content = MonoPage.ReleasePage rel } ]
+    |> List.map (fun mp -> { Url = mp.Url; Content = MonoPage mp.Content })
+
+let getHomePage channels monoReleases =
     let coreInfo =
+        let current = channels |> List.find (fun ch -> ch.SupportPhase = "current")
         { LatestRuntime = current.LatestRuntime
-          LatestRuntimeUrl = releaseUrl current (getLatestRuntimeRel current)
+          LatestRuntimeUrl = coreReleaseUrl current (getLatestRuntimeRel current)
           LatestSdk = current.LatestSdk
-          LatestSdkUrl = releaseUrl current (getLatestSdkRel current)
-          PrimaryChannels = channels |> List.filter (fun ch -> ch.SupportPhase <> "eol") }
-    { Url = "/"; Content = HomePage coreInfo }
+          LatestSdkUrl = coreReleaseUrl current (getLatestSdkRel current)
+          PrimaryChannels = channels |> List.filter (fun ch -> ch.SupportPhase = "current" || ch.SupportPhase = "lts") }
+    let monoInfo =
+        let released =
+            monoReleases 
+            |> List.filter (fun rel -> match rel.ReleaseDate with Released _ -> true | _ -> false)
+            |> List.sortByDescending (fun rel -> rel.Version)
+        { LatestRelease = released |> List.head
+          ReleasesSubset = released |> List.take 3 }
+    { Url = "/"; Content = HomePage (coreInfo, monoInfo) }
 
 let tryGetPagesAndFiles config = 
     async {
@@ -431,9 +458,10 @@ let tryGetPagesAndFiles config =
             | Ok monoReleases ->
                 let! releaseNotesMap = tryGetReleaseNotes channels
                 let corePages = Result.map (channelsToPages channels) releaseNotesMap
-                let homePage = getHomePage channels
+                let monoPages = monoReleasesToPages monoReleases
+                let homePage = getHomePage channels monoReleases
                 let queryJson = getQueryDataFiles channels
-                return Result.map (fun cps -> homePage::cps, queryJson) corePages
+                return Result.map (fun cps -> homePage::cps @ monoPages, queryJson) corePages
             | Error e ->
                 return Error e
         | Error e -> 
@@ -450,7 +478,12 @@ let getBreadcrumbs =
         match x with
         | ChannelsOverview _ -> []
         | ChannelPage _ -> [ ov ]
-        | ReleasePage rel -> [ ov; (sprintf "Channel %O" rel.Channel.ChannelVersion, channelUrl rel.Channel) ]
+        | CorePage.ReleasePage rel -> [ ov; (sprintf "Channel %O" rel.Channel.ChannelVersion, coreChannelUrl rel.Channel) ]
+    | MonoPage x ->
+        home ::
+        match x with
+        | ReleasesOverview _ -> []
+        | ReleasePage _ -> [ ("Mono", "/mono/") ]
     | ErrorPage _ -> []
 
 // Template
@@ -459,7 +492,7 @@ let template (site : StaticSite<Config, Page>) page =
     let _property = XmlEngine.attr "property"
     let date () (d : DateTime) = d.ToLocalTime().ToString "yyyy-MM-dd" 
 
-    let mdPipeline (url : string) =
+    let mdPipeline (file : string) =
         MarkdownPipelineBuilder()
             .UsePipeTables()
             .UseAutoLinks()
@@ -468,8 +501,12 @@ let template (site : StaticSite<Config, Page>) page =
             .UseUrlRewriter(fun link -> 
                 if Uri.IsWellFormedUriString(link.Url, UriKind.Absolute) || link.Url.StartsWith("#") then
                     link.Url
+                else if link.Url.StartsWith("/docs/about-mono/releases/") then
+                    link.Url.Replace("/docs/about-mono/releases", "/mono")
+                else if file.Contains("/docs/about-mono/releases/") then
+                    "https://www.mono-project.com" + link.Url
                 else
-                    url.Substring(0, url.LastIndexOf('/')) + "/" + link.Url)
+                    file.Substring(0, file.LastIndexOf('/')) + "/" + link.Url)
             .Build()
 
     let indicatorSymb symb text clas = 
@@ -495,11 +532,13 @@ let template (site : StaticSite<Config, Page>) page =
         | HomePage _ -> ""
         | CorePage (ChannelsOverview _) -> ".NET Core - "
         | CorePage (ChannelPage ch) -> sprintf "Channel %O - .NET Core - " ch.ChannelVersion
-        | CorePage (ReleasePage rel) -> sprintf "Release %O - .NET Core - " rel.Release.ReleaseVersion
+        | CorePage (CorePage.ReleasePage rel) -> sprintf ".NET Core %O - " rel.Release.ReleaseVersion
+        | MonoPage (ReleasesOverview _) -> "Mono - "
+        | MonoPage (ReleasePage rel) -> sprintf "Mono %O - " rel.Version
         | ErrorPage (code, text) -> sprintf "%s: %s - " code text
 
     let keywords =
-        [ ".NET"; ".NET Version"; "dotnet" ] @
+        [ ".NET"; ".NET Version"; "dotnet"; ".NET Release"; "dotnet release" ] @
         match page.Content with
         | HomePage _ | ErrorPage _ -> []
         | CorePage x -> 
@@ -509,9 +548,17 @@ let template (site : StaticSite<Config, Page>) page =
             | ChannelPage ch -> 
                 [ for s in [ ".NET"; ".NET Core"; ".NET channel"; ".NET Core channel"; "dotnet"; "dotnet channel" ] -> 
                     sprintf "%s %O" s ch.ChannelVersion ]
-            | ReleasePage rel -> 
-                [ for s in [ ".NET"; ".NET Core"; ".NET Version"; ".NET Core Version"; "dotnet"; "dotnet version" ] -> 
+            | CorePage.ReleasePage rel -> 
+                [ for s in [ ".NET"; ".NET Core"; ".NET Version"; ".NET Core Version"; "dotnet"; "dotnet version"
+                             ".NET Core Release"; "dotnet release" ] -> 
                     sprintf "%s %O" s rel.Release.ReleaseVersion ]
+        | MonoPage x ->
+            [ "Mono"; "Mono Version" ] @
+            match x with
+            | ReleasesOverview _ -> []
+            | ReleasePage rel -> 
+                [ for s in [ "Mono"; "Mono Version"; "Mono Release" ] -> 
+                    sprintf "%s %O" s rel.Version ]
 
     let description =
         match page.Content with
@@ -522,9 +569,19 @@ let template (site : StaticSite<Config, Page>) page =
         | CorePage (ChannelPage ch) -> 
             sprintf "Channel %O of .NET Core, with latest release %O, latest runtime %O, latest SDK %O. " 
                 ch.ChannelVersion ch.LatestRelease ch.LatestRuntime ch.LatestSdk
-        | CorePage (ReleasePage rel) ->
+        | CorePage (CorePage.ReleasePage rel) ->
             sprintf "Release %O of .NET Core, released on %a. " 
                 rel.Release.ReleaseVersion date rel.Release.ReleaseDate
+        | MonoPage (ReleasesOverview _) ->
+            "Releases of Mono. "
+        | MonoPage (ReleasePage rel) ->
+            match rel.ReleaseDate with
+            | Released relDate ->
+                sprintf "Release %O of Mono, released on %a. " rel.Version date relDate
+            | Skipped ->
+                sprintf "Skipped release %O of Mono. " rel.Version
+            | Stub ->
+                sprintf "Release %O of Mono. " rel.Version
 
     let breadcrumbs =
         getBreadcrumbs page.Content
@@ -543,8 +600,8 @@ let template (site : StaticSite<Config, Page>) page =
                     th [] [ str "End of Life date" ]
                 ] ]
                 tbody [] [
-                    for ch in channels -> tr [ _onclick (sprintf "location.pathname = '%s';" (channelUrl ch)) ] [ 
-                        td [ _class "title" ] [ a [ _href (channelUrl ch) ] [ strf "%O" ch.ChannelVersion ] ]
+                    for ch in channels -> tr [ _onclick (sprintf "location.pathname = '%s';" (coreChannelUrl ch)) ] [ 
+                        td [ _class "title" ] [ a [ _href (coreChannelUrl ch) ] [ strf "%O" ch.ChannelVersion ] ]
                         td [ _class "support" ] [ supportIndicator ch.SupportPhase ]
                         td [ _class "latest-rel" ] [ 
                             span [ _class "label" ] [ str "Latest release: " ]
@@ -567,9 +624,34 @@ let template (site : StaticSite<Config, Page>) page =
             ]
         ]
 
+    let monoReleaseTable releases =
+        div [ _class "table-wrapper" ] [
+            table [ _class "overview-table mono-table" ] [
+                thead [] [ tr [] [
+                    th [] [ str "Version" ]
+                    th [] [ str "Release date" ]
+                ] ]
+                tbody [] [
+                    for rel in releases -> tr [ _onclick (sprintf "location.pathname = '%s';" (monoReleaseUrl rel)) ] [
+                        td [ _class "title" ] [ a [ _href (monoReleaseUrl rel) ] [ strf "%O" rel.Version ] ]
+                        td [ _class "rel-date" ] [
+                            match rel.ReleaseDate with
+                            | Released relDate ->
+                                yield span [ _class "label" ] [ str "Released on " ]
+                                yield strf "%a" date relDate
+                            | Skipped ->
+                                yield str "Skipped"
+                            | Stub ->
+                                yield str "Preview"
+                        ]
+                    ]
+                ]
+            ]
+        ]
+
     let content = 
         match page.Content with
-        | HomePage coreInfo ->
+        | HomePage (coreInfo, monoInfo) ->
             div [ _class "inner-container" ] [
                 section [] [
                     h1 [ _class "inner-spaced" ] [ a [ _href "/core/" ] [ str ".NET Core" ] ]
@@ -587,9 +669,24 @@ let template (site : StaticSite<Config, Page>) page =
                             span [ _class "label" ] [ str "Latest SDK" ]
                         ]
                     ]
-                    h2 [ _class "inner-spaced" ] [ str "Latest channels" ]
+                    h2 [ _class "inner-spaced" ] [ str "Supported channels" ]
                     channelsTable coreInfo.PrimaryChannels
                     a [ _class "inner-spaced"; _href "/core/" ] [ str "See all channels >" ]
+                ]
+                section [] [
+                    h1 [ _class "inner-spaced" ] [ a [ _href "/mono/" ] [ str "Mono" ] ]
+                    div [ _class "inner-spaced latest-versions" ] [
+                        div [] [
+                            span [ _class "version" ] [
+                                a [ _href (monoReleaseUrl monoInfo.LatestRelease) ] 
+                                  [ strf "%O" monoInfo.LatestRelease.Version ]
+                            ]
+                            span [ _class "label" ] [ str "Latest release" ]
+                        ]
+                    ]
+                    h2 [ _class "inner-spaced" ] [ str "Recent releases" ]
+                    monoReleaseTable monoInfo.ReleasesSubset
+                    a [_class "inner-spaced"; _href "/mono/" ] [ str "See all releases >" ]
                 ]
             ]
         | CorePage (ChannelsOverview channels) -> 
@@ -608,13 +705,13 @@ let template (site : StaticSite<Config, Page>) page =
                     yield li [] [ a [ _href channel.LifecyclePolicy ] [ str "Lifecycle Policy" ] ]
                     yield li [] [ 
                         str "Latest runtime: " 
-                        a [ _href (releaseUrl channel (getLatestRuntimeRel channel)) ] [ 
+                        a [ _href (coreReleaseUrl channel (getLatestRuntimeRel channel)) ] [ 
                             strf "%O" (channel.LatestRuntime |> Version.simplify) 
                         ]
                     ]
                     yield li [] [ 
                         strf "Latest SDK: " 
-                        a [ _href (releaseUrl channel (getLatestSdkRel channel)) ] [ 
+                        a [ _href (coreReleaseUrl channel (getLatestSdkRel channel)) ] [ 
                             strf "%O" (channel.LatestSdk |> Version.simplify) 
                         ]
                     ]
@@ -630,8 +727,8 @@ let template (site : StaticSite<Config, Page>) page =
                             th [] [ str "Security" ]
                         ] ]
                         tbody [] [
-                            for rel in channel.Releases -> tr [ _onclick (sprintf "location.pathname = '%s';" (releaseUrl channel rel)) ] [
-                                td [ _class "title" ] [ a [ _href (releaseUrl channel rel) ] [ strf "%O" rel.ReleaseVersion ] ]
+                            for rel in channel.Releases -> tr [ _onclick (sprintf "location.pathname = '%s';" (coreReleaseUrl channel rel)) ] [
+                                td [ _class "title" ] [ a [ _href (coreReleaseUrl channel rel) ] [ strf "%O" rel.ReleaseVersion ] ]
                                 td [ _class "rel-date" ] [
                                     span [ _class "label" ] [ str "Released on " ]
                                     strf "%a" date rel.ReleaseDate
@@ -654,7 +751,7 @@ let template (site : StaticSite<Config, Page>) page =
                     ]
                 ]
             ]
-        | CorePage (ReleasePage releaseAndNotes) ->
+        | CorePage (CorePage.ReleasePage releaseAndNotes) ->
             let rel = releaseAndNotes.Release
             let filesList title files =
                 div [ _class "files-list" ] [
@@ -730,6 +827,33 @@ let template (site : StaticSite<Config, Page>) page =
                         match rel.Symbols with
                         | Some symb -> yield filesList "Symbols" symb.Files
                         | None -> ()
+                    ]
+                ]
+            ]
+        | MonoPage (ReleasesOverview releases) ->
+            let releases = releases |> List.sortByDescending (fun rel -> rel.Version)
+            div [ _class "inner-container" ] [
+                h1 [ _class "inner-spaced" ] [ str "Mono" ]
+                monoReleaseTable releases
+            ]
+        | MonoPage (ReleasePage rel) ->
+            div [ _class "inner-container" ] [
+                h1 [ _class "inner-spaced" ] [ strf "Release %O" rel.Version ]
+                ul [ _class "props-list" ] [
+                    li [] [ 
+                        match rel.ReleaseDate with
+                        | Released relDate -> yield strf "Released on %a" date relDate
+                        | Skipped -> yield str "Skipped"
+                        | Stub -> yield str "Preview"
+                    ]
+                ]
+                section [ _class "release-notes" ] [
+                    div [ _class "header-box inner-spaced" ] [
+                        h2 [] [ str "Release notes" ]
+                        span [] [ str "("; a [ _href rel.ReleaseNotesSource ] [ str "Source" ]; str ")" ]
+                    ]
+                    article [ _class "text" ] [ 
+                        rawText (Markdown.ToHtml(rel.Markdown, mdPipeline rel.ReleaseNotesSource))
                     ]
                 ]
             ]
