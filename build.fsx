@@ -393,7 +393,7 @@ type CoreInfo =
       PrimaryChannels : Channel list }
 
 type CorePage =
-    | ChannelsOverview of Channel list
+    | ChannelsOverview of Channel list * CoreInfo
     | ChannelPage of Channel
     | ReleasePage of {| Channel : Channel; Release : Release; ReleaseNotesMarkdown : string option |}
 
@@ -402,7 +402,7 @@ type MonoInfo =
       ReleasesSubset : MonoRelease list }
 
 type MonoPage =
-    | ReleasesOverview of MonoRelease list
+    | ReleasesOverview of MonoRelease list * MonoInfo
     | ReleasePage of MonoRelease
 
 type Page =
@@ -414,8 +414,16 @@ type Page =
 let coreChannelUrl ch = sprintf "/core/%O/" ch.ChannelVersion
 let coreReleaseUrl ch rel = sprintf "/core/%O/%O/" ch.ChannelVersion rel.ReleaseVersion
 
+let coreInfo channels =
+    let current = channels |> List.find (fun ch -> ch.SupportPhase = "current")
+    { LatestRuntime = current.LatestRuntime
+      LatestRuntimeUrl = coreReleaseUrl current (getLatestRuntimeRel current)
+      LatestSdk = current.LatestSdk
+      LatestSdkUrl = coreReleaseUrl current (getLatestSdkRel current)
+      PrimaryChannels = channels |> List.filter (fun ch -> ch.SupportPhase = "current" || ch.SupportPhase = "lts") }
+
 let channelsToPages channels releaseNotesMap =
-    [ yield { Url = "/core/"; Content = ChannelsOverview channels }
+    [ yield { Url = "/core/"; Content = ChannelsOverview (channels, coreInfo channels) }
       for ch in channels do
         yield { Url = coreChannelUrl ch; Content = ChannelPage ch }
         for rel in ch.Releases do
@@ -428,27 +436,21 @@ let channelsToPages channels releaseNotesMap =
 
 let monoReleaseUrl rel = sprintf "/mono/%O/" rel.Version
 
+let monoInfo monoReleases =
+    let released =
+        monoReleases 
+        |> List.filter (fun rel -> match rel.ReleaseDate with Released _ -> true | _ -> false)
+        |> List.sortByDescending (fun rel -> rel.Version)
+    { LatestRelease = released |> List.head
+      ReleasesSubset = released |> List.take 3 }
+
 let monoReleasesToPages releases =
-    [ yield { Url = "/mono/"; Content = ReleasesOverview releases }
+    [ yield { Url = "/mono/"; Content = ReleasesOverview (releases, monoInfo releases) }
       for rel in releases -> { Url = monoReleaseUrl rel; Content = MonoPage.ReleasePage rel } ]
     |> List.map (fun mp -> { Url = mp.Url; Content = MonoPage mp.Content })
 
 let getHomePage channels monoReleases =
-    let coreInfo =
-        let current = channels |> List.find (fun ch -> ch.SupportPhase = "current")
-        { LatestRuntime = current.LatestRuntime
-          LatestRuntimeUrl = coreReleaseUrl current (getLatestRuntimeRel current)
-          LatestSdk = current.LatestSdk
-          LatestSdkUrl = coreReleaseUrl current (getLatestSdkRel current)
-          PrimaryChannels = channels |> List.filter (fun ch -> ch.SupportPhase = "current" || ch.SupportPhase = "lts") }
-    let monoInfo =
-        let released =
-            monoReleases 
-            |> List.filter (fun rel -> match rel.ReleaseDate with Released _ -> true | _ -> false)
-            |> List.sortByDescending (fun rel -> rel.Version)
-        { LatestRelease = released |> List.head
-          ReleasesSubset = released |> List.take 3 }
-    { Url = "/"; Content = HomePage (coreInfo, monoInfo) }
+    { Url = "/"; Content = HomePage (coreInfo channels, monoInfo monoReleases) }
 
 let tryGetPagesAndFiles config = 
     async {
@@ -624,6 +626,22 @@ let template (site : StaticSite<Config, Page>) page =
             ]
         ]
 
+    let coreHeader coreInfo =
+        div [ _class "inner-spaced latest-versions" ] [
+            div [] [ 
+                span [ _class "version" ] [ 
+                    a [ _href coreInfo.LatestRuntimeUrl ] [ strf "%O" coreInfo.LatestRuntime ]
+                ]
+                span [ _class "label" ] [ str "Latest runtime" ]
+            ]
+            div [] [ 
+                span [ _class "version" ] [
+                    a [ _href coreInfo.LatestSdkUrl ] [ strf "%O" coreInfo.LatestSdk ]
+                ]
+                span [ _class "label" ] [ str "Latest SDK" ]
+            ]
+        ]
+
     let monoReleaseTable releases =
         div [ _class "table-wrapper" ] [
             table [ _class "overview-table mono-table" ] [
@@ -649,49 +667,41 @@ let template (site : StaticSite<Config, Page>) page =
             ]
         ]
 
+    let monoHeader monoInfo =
+        div [ _class "inner-spaced latest-versions" ] [
+            div [] [
+                span [ _class "version" ] [
+                    a [ _href (monoReleaseUrl monoInfo.LatestRelease) ] 
+                      [ strf "%O" monoInfo.LatestRelease.Version ]
+                ]
+                span [ _class "label" ] [ str "Latest release" ]
+            ]
+        ]
+
     let content = 
         match page.Content with
         | HomePage (coreInfo, monoInfo) ->
             div [ _class "inner-container" ] [
                 section [] [
                     h1 [ _class "inner-spaced" ] [ a [ _href "/core/" ] [ str ".NET Core" ] ]
-                    div [ _class "inner-spaced latest-versions" ] [
-                        div [] [ 
-                            span [ _class "version" ] [ 
-                                a [ _href coreInfo.LatestRuntimeUrl ] [ strf "%O" coreInfo.LatestRuntime ]
-                            ]
-                            span [ _class "label" ] [ str "Latest runtime" ]
-                        ]
-                        div [] [ 
-                            span [ _class "version" ] [
-                                a [ _href coreInfo.LatestSdkUrl ] [ strf "%O" coreInfo.LatestSdk ]
-                            ]
-                            span [ _class "label" ] [ str "Latest SDK" ]
-                        ]
-                    ]
+                    coreHeader coreInfo
                     h2 [ _class "inner-spaced" ] [ str "Supported channels" ]
                     channelsTable coreInfo.PrimaryChannels
                     a [ _class "inner-spaced"; _href "/core/" ] [ str "See all channels >" ]
                 ]
                 section [] [
                     h1 [ _class "inner-spaced" ] [ a [ _href "/mono/" ] [ str "Mono" ] ]
-                    div [ _class "inner-spaced latest-versions" ] [
-                        div [] [
-                            span [ _class "version" ] [
-                                a [ _href (monoReleaseUrl monoInfo.LatestRelease) ] 
-                                  [ strf "%O" monoInfo.LatestRelease.Version ]
-                            ]
-                            span [ _class "label" ] [ str "Latest release" ]
-                        ]
-                    ]
+                    monoHeader monoInfo
                     h2 [ _class "inner-spaced" ] [ str "Recent releases" ]
                     monoReleaseTable monoInfo.ReleasesSubset
                     a [_class "inner-spaced"; _href "/mono/" ] [ str "See all releases >" ]
                 ]
             ]
-        | CorePage (ChannelsOverview channels) -> 
+        | CorePage (ChannelsOverview (channels, coreInfo)) -> 
             div [ _class "inner-container" ] [
                 h1 [ _class "inner-spaced" ] [ str ".NET Core" ]
+                coreHeader coreInfo
+                h2 [ _class "inner-spaced" ] [ str "Channels" ]
                 channelsTable channels
             ]
         | CorePage (ChannelPage channel) ->
@@ -830,10 +840,12 @@ let template (site : StaticSite<Config, Page>) page =
                     ]
                 ]
             ]
-        | MonoPage (ReleasesOverview releases) ->
+        | MonoPage (ReleasesOverview (releases, monoInfo)) ->
             let releases = releases |> List.sortByDescending (fun rel -> rel.Version)
             div [ _class "inner-container" ] [
                 h1 [ _class "inner-spaced" ] [ str "Mono" ]
+                monoHeader monoInfo
+                h2 [ _class "inner-spaced" ] [ str "Releases" ]
                 monoReleaseTable releases
             ]
         | MonoPage (ReleasePage rel) ->
