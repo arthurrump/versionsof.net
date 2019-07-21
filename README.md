@@ -6,7 +6,15 @@
 
 ## Building the website
 
-This site is built using [Fake.StaticGen](https://github.com/arthurrump/Fake.StaticGen), which is a toolset for generating static websites, built on the [FAKE](https://fake.build) build system. To build the site, you need the .NET Core SDK and `fake-cli` tool (`dotnet tool install fake-cli`). To generate the site, run
+This site is built using [Fake.StaticGen](https://github.com/arthurrump/Fake.StaticGen), which is a toolset for generating static websites, built on the [FAKE](https://fake.build) build system. To build the site, you need the .NET Core SDK and `fake-cli` tool (`dotnet tool install fake-cli`). 
+
+To get the list of Mono releases, access to the GitHub API is required. The secrets for this are to be stored in a *secrets.toml* file with entries for `gh-client-id` and `gh-client-secret`. These secrets can be acquired by creating a [GitHub OAuth app](https://github.com/settings/developers). You can also create the *secrets.toml* file using the `Configure` target with FAKE:
+
+```
+fake build -t configure -- [GitHub Client ID] [GitHub Client Secret]
+```
+
+To generate the site, run
 
 ```
 fake build

@@ -6,6 +6,7 @@ nuget Fake.StaticGen.Markdown
 nuget MarkdigExtensions.SyntaxHighlighting
 nuget MarkdigExtensions.UrlRewriter
 nuget Nett
+nuget YamlDotNet
 nuget NetCoreVersions //"
 #load "./.fake/build.fsx/intellisense.fsx"
 #if !FAKE
@@ -50,6 +51,48 @@ module private Version =
         | Some prev -> { version with Preview = Some (prev.Split('-').[0]) }
         | None -> version
 
+module private Decode =
+    let version path value =
+        match Decode.string path value with
+        | Ok s ->
+            match Version.parse s with
+            | Some v -> Ok v
+            | None -> (path, BadPrimitive("a version", value)) |> Result.Error
+        | Error v -> Error v
+
+let (|DateTime|_|) text = 
+    match DateTime.TryParse text with
+    | (true, dt) -> Some dt
+    | (false, _) -> None
+
+// Site configuration
+/////////////////////
+let now = DateTime.UtcNow
+
+type Config =
+    { ReleasesIndexUrl : string
+      Title : string
+      Description : string
+
+      MonoRepo : string
+      MonoPath : string
+      
+      // Secrets, defined in secrets.toml
+      GitHubClientId : string
+      GitHubClientSecret : string }
+
+let parseConfig config =
+    let toml = Toml.ReadString(config)
+    { ReleasesIndexUrl = toml.["releases-index-url"].Get()
+      Title = toml.["title"].Get()
+      Description = toml.["description"].Get()
+
+      MonoRepo = toml.["mono-repo"].Get()
+      MonoPath = toml.["mono-path"].Get()
+      
+      GitHubClientId = toml.["gh-client-id"].Get()
+      GitHubClientSecret = toml.["gh-client-secret"].Get() }
+
 // Data dowloads
 ////////////////
 let download (accept : string) (url : string) =
@@ -57,6 +100,7 @@ let download (accept : string) (url : string) =
         use http = new HttpClient()
         use req = new HttpRequestMessage(HttpMethod.Get, url)
         req.Headers.Add("Accept", accept)
+        req.Headers.Add("User-Agent", "Fake.StaticGen")
         Trace.tracefn "Downloading %s" url
         let! resp = http.SendAsync req |> Async.AwaitTask
         if resp.IsSuccessStatusCode then
@@ -77,6 +121,8 @@ let rewriteGithubUrls (url : string) =
 let downloadGh accept = rewriteGithubUrls >> download accept
 let getJsonGh = rewriteGithubUrls >> getJson
 
+// .NET Core - Data
+/////////////////
 let decodeIndex = Decode.fromString (Decode.field "releases-index" (Decode.list IndexEntry.Decoder))
 let decodeChannel = Decode.fromString Channel.Decoder
 
@@ -115,7 +161,7 @@ let tryGetReleaseNotes channels =
     |> Async.Parallel
     |> Async.map (List.ofArray >> Result.allOk >> Result.map Map.ofList)
 
-// Data Helpers
+// .NET Core - Data Helpers
 ///////////////
 let allSdks rel = rel.Sdk :: rel.Sdks |> List.distinct
 
@@ -132,17 +178,77 @@ let getLatestSdkRel channel =
         allSdks rel 
         |> List.exists (fun sdk -> sdk.Version = channel.LatestSdk))
 
-// Query data sources
-/////////////////////
-module private Decode =
-    let version path value =
-        match Decode.string path value with
-        | Ok s ->
-            match Version.parse s with
-            | Some v -> Ok v
-            | None -> (path, BadPrimitive("a version", value)) |> Result.Error
-        | Error v -> Error v
+// Mono - Data
+//////////////
+type MonoReleaseDate =
+    | Released of DateTime
+    | Skipped
+    | Stub
 
+let (|MonoReleaseDate|_|) = function
+    | "skipped" -> Some Skipped
+    | t when String.isNullOrWhiteSpace t -> Some Stub
+    | DateTime dt -> Some (Released dt)
+    | t -> Trace.traceImportantfn "Unparsed release date: \"%s\"" t; None
+
+type MonoRelease =
+    { Version : Version
+      ReleaseDate : MonoReleaseDate
+      Markdown : string }
+
+let ghFileDecoder =
+    Decode.object (fun get ->
+        get.Required.Field "name" Decode.string, 
+        get.Required.Field "download_url" Decode.string)
+
+let monoReleasesUrl config =
+    sprintf "https://api.github.com/repos/%s/contents/%s?client_id=%s&client_secret=%s"
+        config.MonoRepo config.MonoPath config.GitHubClientId config.GitHubClientSecret
+
+let tryGetMonoReleaseUrls url = 
+    async {
+        let! json = getJson url
+        return json 
+        |> Result.bind (Decode.fromString (Decode.list ghFileDecoder))
+        |> Result.map (List.filter (fun (file, _) -> file <> "index.md") >> List.map snd)
+    }
+
+let yamlDecode = 
+    let deserializer = YamlDotNet.Serialization.Deserializer()
+    fun (text : string) ->
+        deserializer.Deserialize<Collections.Generic.Dictionary<string, string>>(text)
+
+let tryParseMonoRelease text =
+    match Markdown.splitFrontmatter text with
+    | (Some yaml, md) ->
+        let fields = yamlDecode yaml
+        match fields.["version"], fields.["releasedate"] with
+        | Version.Version v, MonoReleaseDate d ->
+            Ok { Version = v; ReleaseDate = d; Markdown = md }
+        | _ -> 
+            Error (sprintf "Couldn't parse Mono release YAML: %s" yaml)
+    | _ -> 
+        Error (sprintf "No frontmatter found in Mono release \"%s...\"" (text.Substring(0, 50)))
+
+let tryGetMonoReleasesFromUrls urls =
+    async {
+        let! files =
+            urls
+            |> List.map (downloadGh "text/plain" >> Async.map (Result.bind tryParseMonoRelease))
+            |> Async.Parallel
+        return files |> List.ofArray |> Result.allOk
+    }
+
+let tryGetMonoReleases config =
+    async {
+        let! urls = tryGetMonoReleaseUrls (monoReleasesUrl config)
+        match urls with
+        | Ok urls -> return! tryGetMonoReleasesFromUrls urls
+        | Error e -> return Error e
+    }
+
+// .NET Core - Query data sources
+/////////////////////////////////
 module Query =
     type Sdk =
         { Version : Version
@@ -264,6 +370,8 @@ module Query =
               Cves = rel.CveList |> List.map (fun cve -> cve.CveId) })
         |> List.sortByDescending (fun rel -> rel.ReleaseDate)
 
+// Query data sources
+/////////////////////
 let getQueryDataFiles channels =
     let jsonFile path encoder objects =
         { Url = path
@@ -291,7 +399,6 @@ type Page =
     | CorePage of CorePage
     | ErrorPage of code: string * text: string
 
-// TODO: index.html should not be needed here, fix in Fake.StaticGen
 let channelUrl ch = sprintf "/core/%O/" ch.ChannelVersion
 let releaseUrl ch rel = sprintf "/core/%O/%O/" ch.ChannelVersion rel.ReleaseVersion
 
@@ -316,15 +423,19 @@ let getHomePage channels =
           PrimaryChannels = channels |> List.filter (fun ch -> ch.SupportPhase <> "eol") }
     { Url = "/"; Content = HomePage coreInfo }
 
-let tryGetPagesAndFiles indexUrl = 
+let tryGetPagesAndFiles config = 
     async {
-        match! tryGetChannels indexUrl with
+        match! tryGetChannels config.ReleasesIndexUrl with
         | Ok channels ->
-            let! releaseNotesMap = tryGetReleaseNotes channels
-            let corePages = Result.map (channelsToPages channels) releaseNotesMap
-            let homePage = getHomePage channels
-            let queryJson = getQueryDataFiles channels
-            return Result.map (fun cps -> homePage::cps, queryJson) corePages
+            match! tryGetMonoReleases config with
+            | Ok monoReleases ->
+                let! releaseNotesMap = tryGetReleaseNotes channels
+                let corePages = Result.map (channelsToPages channels) releaseNotesMap
+                let homePage = getHomePage channels
+                let queryJson = getQueryDataFiles channels
+                return Result.map (fun cps -> homePage::cps, queryJson) corePages
+            | Error e ->
+                return Error e
         | Error e -> 
             return Error e
     }
@@ -341,21 +452,6 @@ let getBreadcrumbs =
         | ChannelPage _ -> [ ov ]
         | ReleasePage rel -> [ ov; (sprintf "Channel %O" rel.Channel.ChannelVersion, channelUrl rel.Channel) ]
     | ErrorPage _ -> []
-
-// Site configuration
-/////////////////////
-let now = DateTime.UtcNow
-
-type Config =
-    { ReleasesIndexUrl : string
-      Title : string
-      Description : string }
-
-let parseConfig config =
-    let toml = Toml.ReadString(config)
-    { ReleasesIndexUrl = toml.["releases-index-url"].Get()
-      Title = toml.["title"].Get()
-      Description = toml.["description"].Get() }
 
 // Template
 ///////////
@@ -710,9 +806,9 @@ let createStaticSite config pages files =
     |> StaticSite.withFiles files
     |> StaticSite.withPage (ErrorPage ("404", "Not Found")) "/404.html"
 
-let tryGenerateSite config =
+let generateSite config =
     async {
-        match! tryGetPagesAndFiles config.ReleasesIndexUrl with
+        match! tryGetPagesAndFiles config with
         | Ok (pages, files) ->
             createStaticSite config pages files
             |> StaticSite.generateFromHtml "public" template
@@ -721,8 +817,29 @@ let tryGenerateSite config =
 
 // Targets
 //////////
+let [<Literal>] configFile = "config.toml"
+let [<Literal>] secretsFile = "secrets.toml"
+
 Target.create "Generate" <| fun _ ->
-    let config = File.readAsString "config.toml" |> parseConfig
-    tryGenerateSite config |> Async.RunSynchronously
+    if File.exists secretsFile then
+        let config = 
+            [ configFile; secretsFile ]
+            |> List.map File.readAsString
+            |> String.concat "\n" 
+            |> parseConfig
+        generateSite config |> Async.RunSynchronously
+    else
+        Trace.traceErrorfn "Could not find file '%s'. Please create one using the Configure target." secretsFile
+
+Target.create "Configure" <| fun p ->
+    match p.Context.Arguments with
+    | [ ghClientId; ghClientSecret ] ->
+        let toml = Toml.Create()
+        toml.Add("gh-client-id", ghClientId) |> ignore
+        toml.Add("gh-client-secret", ghClientSecret) |> ignore
+        Toml.WriteFile(toml, secretsFile)
+    | _ ->
+        Trace.traceErrorfn "Invalid arguments for Configure"
+        Trace.traceErrorfn "Required arguments: [GitHub Client ID] [GitHub Client Secret]"
           
-Target.runOrDefault "Generate"
+Target.runOrDefaultWithArguments "Generate"
