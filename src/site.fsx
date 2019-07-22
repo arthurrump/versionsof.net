@@ -24,19 +24,21 @@ open Markdig
 open Helpers
 
 #load "core.fsx"
+#load "framework.fsx"
 #load "mono.fsx"
 #load "query.fsx"
 
 // Site structure and page creation
 ///////////////////////////////////
 type Page =
-    | HomePage of Core.Info * Mono.Info
+    | HomePage of Core.Info * Framework.Info * Mono.Info
     | CorePage of Core.Page
+    | FrameworkPage of Framework.Page
     | MonoPage of Mono.Page
     | ErrorPage of code: string * text: string
 
-let getHomePage channels monoReleases =
-    { Url = "/"; Content = HomePage (Core.getInfo channels, Mono.getInfo monoReleases) }
+let getHomePage channels frameworkReleases monoReleases =
+    { Url = "/"; Content = HomePage (Core.getInfo channels, Framework.getInfo frameworkReleases, Mono.getInfo monoReleases) }
 
 let tryGetPagesAndFiles config = 
     async {
@@ -46,10 +48,11 @@ let tryGetPagesAndFiles config =
             | Ok monoReleases ->
                 let! coreRelNotes = Core.tryGetReleaseNotes coreChannels
                 let corePages = Result.map (Core.channelsToPages coreChannels >> Page.mapl CorePage) coreRelNotes
+                let frameworkPages = [] // TODO
                 let monoPages = Mono.releasesToPages monoReleases |> Page.mapl MonoPage
-                let homePage = getHomePage coreChannels monoReleases
+                let homePage = getHomePage coreChannels [] monoReleases
                 let queryJson = Query.getDataFiles coreChannels monoReleases
-                return Result.map (fun cps -> homePage::cps @ monoPages, queryJson) corePages
+                return Result.map (fun cps -> homePage::cps @ frameworkPages @ monoPages, queryJson) corePages
             | Error e ->
                 return Error e
         | Error e -> 
@@ -61,6 +64,7 @@ let getBreadcrumbs =
     function
     | HomePage _ -> []
     | CorePage p -> home :: Core.getBreadcrumbs p
+    | FrameworkPage p -> home :: Framework.getBreadcrumbs p
     | MonoPage p -> home :: Mono.getBreadcrumbs p
     | ErrorPage _ -> []
 
@@ -73,6 +77,7 @@ let template (site : StaticSite<Config, Page>) page =
         match page.Content with
         | HomePage _ -> ""
         | CorePage p -> Core.titleText p
+        | FrameworkPage p -> Framework.titleText p
         | MonoPage p -> Mono.titleText p
         | ErrorPage (code, text) -> sprintf "%s: %s - " code text
 
@@ -81,12 +86,14 @@ let template (site : StaticSite<Config, Page>) page =
         match page.Content with
         | HomePage _ | ErrorPage _ -> []
         | CorePage p -> Core.keywords p
+        | FrameworkPage p -> Framework.titleText p
         | MonoPage p -> Mono.keywords p
 
     let description =
         match page.Content with
         | HomePage _ | ErrorPage _ -> ""
         | CorePage p -> Core.description p
+        | FrameworkPage p -> Framework.description p
         | MonoPage p -> Mono.description p
     
     let navItem name url =
@@ -100,12 +107,14 @@ let template (site : StaticSite<Config, Page>) page =
 
     let content = 
         match page.Content with
-        | HomePage (coreInfo, monoInfo) ->
+        | HomePage (coreInfo, frameworkInfo, monoInfo) ->
             div [ _class "inner-container" ] [
                 Core.homeSection coreInfo
+                Framework.homeSection frameworkInfo
                 Mono.homeSection monoInfo
             ]
         | CorePage p -> Core.content p
+        | FrameworkPage p -> Framework.content p
         | MonoPage p -> Mono.content p
         | ErrorPage (code, text) ->
             div [ _id "error-page" ] [
