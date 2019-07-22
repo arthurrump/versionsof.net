@@ -86,7 +86,7 @@ let template (site : StaticSite<Config, Page>) page =
         match page.Content with
         | HomePage _ | ErrorPage _ -> []
         | CorePage p -> Core.keywords p
-        | FrameworkPage p -> Framework.titleText p
+        | FrameworkPage p -> Framework.keywords p
         | MonoPage p -> Mono.keywords p
 
     let description =
