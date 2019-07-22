@@ -29,6 +29,19 @@ type ReleaseDate =
     | Skipped
     | Stub
 
+    static member Encoder = function
+        | Released dt -> Encode.datetime dt
+        | Skipped -> Encode.string "skipped"
+        | Stub -> Encode.string "stub"
+
+    static member Decoder path value = 
+        match Decode.string path value with
+        | Ok "skipped" -> Ok Skipped
+        | Ok "stub" -> Ok Stub
+        | Ok (DateTime dt) -> Ok (Released dt)
+        | Ok _ -> Error (path, BadPrimitive ("a date, 'skipped' or 'stub'", value))
+        | Error v -> Error v
+
 let (|ReleaseDate|_|) = function
     | "skipped" -> Some Skipped
     | t when String.isNullOrWhiteSpace t -> Some Stub

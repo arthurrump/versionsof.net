@@ -41,14 +41,14 @@ let getHomePage channels monoReleases =
 let tryGetPagesAndFiles config = 
     async {
         match! Core.tryGetChannels config.ReleasesIndexUrl with
-        | Ok channels ->
+        | Ok coreChannels ->
             match! Mono.tryGetReleases config with
             | Ok monoReleases ->
-                let! releaseNotesMap = Core.tryGetReleaseNotes channels
-                let corePages = Result.map (Core.channelsToPages channels >> Page.mapl CorePage) releaseNotesMap
+                let! coreRelNotes = Core.tryGetReleaseNotes coreChannels
+                let corePages = Result.map (Core.channelsToPages coreChannels >> Page.mapl CorePage) coreRelNotes
                 let monoPages = Mono.releasesToPages monoReleases |> Page.mapl MonoPage
-                let homePage = getHomePage channels monoReleases
-                let queryJson = Query.getDataFiles channels
+                let homePage = getHomePage coreChannels monoReleases
+                let queryJson = Query.getDataFiles coreChannels monoReleases
                 return Result.map (fun cps -> homePage::cps @ monoPages, queryJson) corePages
             | Error e ->
                 return Error e

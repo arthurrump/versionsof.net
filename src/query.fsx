@@ -10,6 +10,7 @@ module Query
 open Helpers
 
 #load "core.fsx"
+#load "mono.fsx"
 
 open Fake.StaticGen
 
@@ -143,12 +144,37 @@ module Core =
               Cves = rel.CveList |> List.map (fun cve -> cve.CveId) })
         |> List.sortByDescending (fun rel -> rel.ReleaseDate)
 
+// Mono
+///////
+module Mono =
+    type Release =
+        { Version : Version
+          ReleaseDate : Mono.ReleaseDate }
+
+        static member Encoder rel = 
+            Encode.object [
+                "version", Encode.string (string rel.Version)
+                "date", Mono.ReleaseDate.Encoder rel.ReleaseDate
+            ]
+
+        static member Decoder =
+            Decode.object (fun get ->
+                { Version = get.Required.Field "version" Decode.version
+                  ReleaseDate = get.Required.Field "date" Mono.ReleaseDate.Decoder })
+    
+    let getReleases (releases : Mono.Release list) =
+        releases
+        |> List.map (fun rel ->
+            { Version = rel.Version
+              ReleaseDate = rel.ReleaseDate })
+
 // Query files
 //////////////
-let getDataFiles channels =
+let getDataFiles coreChannels monoReleases =
     let jsonFile path encoder objects =
         { Url = path
           Content = List.map encoder objects |> Encode.list |> Encode.toString 0 |> Encoding.UTF8.GetBytes }
-    [ channels |> Core.getSdks |> jsonFile "/query/core/sdks.json" Core.Sdk.Encoder   
-      channels |> Core.getRuntimes |> jsonFile "/query/core/runtimes.json" Core.Runtime.Encoder  
-      channels |> Core.getReleases |> jsonFile "/query/core/releases.json" Core.Release.Encoder ]
+    [ coreChannels |> Core.getSdks |> jsonFile "/query/core/sdks.json" Core.Sdk.Encoder   
+      coreChannels |> Core.getRuntimes |> jsonFile "/query/core/runtimes.json" Core.Runtime.Encoder  
+      coreChannels |> Core.getReleases |> jsonFile "/query/core/releases.json" Core.Release.Encoder
+      monoReleases |> Mono.getReleases |> jsonFile "/query/mono/releases.json" Mono.Release.Encoder ]
