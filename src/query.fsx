@@ -1,6 +1,6 @@
 module Query
 
-#load "./.fake/build.fsx/intellisense.fsx"
+#load "../.fake/build.fsx/intellisense.fsx"
 #if !FAKE
     #r "Facades/netstandard" // Intellisense fix, see FAKE #1938
     #r "netstandard"

@@ -1,9 +1,10 @@
 module Helpers
 
-#load "./.fake/build.fsx/intellisense.fsx"
+#load "../.fake/build.fsx/intellisense.fsx"
 #if !FAKE
     #r "Facades/netstandard" // Intellisense fix, see FAKE #1938
     #r "netstandard"
+    #r "System.Net.Http"
 #endif
 
 open Fake.Core
