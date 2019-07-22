@@ -167,7 +167,7 @@ let template (site : StaticSite<Config, Page>) page =
             meta [ _property "og:title"; _content (titleText + site.Config.Title) ]
             meta [ _property "og:type"; _content "website" ]
             meta [ _property "og:description"; _content (description + site.Config.Description) ]
-            meta [ _property "og:image"; _content "/logo.png" ]
+            meta [ _property "og:image"; _content (site.AbsoluteUrl "/logo.png") ]
             matomo
         ]
         body [ ] [
