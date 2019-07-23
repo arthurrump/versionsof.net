@@ -7,7 +7,9 @@ nuget MarkdigExtensions.SyntaxHighlighting
 nuget MarkdigExtensions.UrlRewriter
 nuget Nett
 nuget YamlDotNet
-nuget NetCoreVersions //"
+nuget NetCoreVersions
+nuget FSharp.Data
+nuget FSharpPlus //"
 #load "./.fake/build.fsx/intellisense.fsx"
 
 open Fake.Core

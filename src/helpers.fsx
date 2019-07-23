@@ -50,10 +50,18 @@ module Page =
     let map f p = { Url = p.Url; Content = f p.Content }
     let mapl f = List.map (map f)
 
-let (|DateTime|_|) text = 
-    match DateTime.TryParse text with
-    | (true, dt) -> Some dt
-    | (false, _) -> None
+module DateTime =
+    let tryParse text =
+        match DateTime.TryParse text with
+        | (true, dt) -> Some dt
+        | (false, _) -> None
+
+let (|DateTime|_|) = DateTime.tryParse
+
+module Option =
+    let bindResult err f = function
+        | Some x -> f x
+        | None -> Error err
 
 // Site configuration
 /////////////////////

@@ -16,6 +16,8 @@ open Fake.StaticGen.Markdown
 
 open System
 
+open FSharp.Data
+open FSharpPlus.Builders
 open Markdig
 open NetCore.Versions
 open NetCore.Versions.Data
@@ -24,13 +26,73 @@ open Thoth.Json.Net
 
 // Data
 ///////
+type ReleaseNotes =
+    { Link : Url
+      Markdown : string option }
+
 type Release =
     { Version : Version
-      ReleaseDate : DateTime }
+      ReleaseDate : DateTime
+      ClrVersion : Version
+      IncludedInWindows : string option
+      IncludedInServer : string option
+      InstallableOnWindows : string list
+      InstallableOnServer : string list
+      ReleaseNotes : ReleaseNotes option
+      NewFeaturesLink : Url option
+      NewAccessibilityLink : Url option }
+
+let [<Literal>] wikipediaUrl = "https://en.wikipedia.org/wiki/Template:.NET_Framework_version_history"
+let [<Literal>] msDocsUrl = "https://docs.microsoft.com/en-us/dotnet/framework/migration-guide/versions-and-dependencies"
+
+type Wikipedia = HtmlProvider<wikipediaUrl, PreferOptionals = true>
+type MsDocs = HtmlProvider<msDocsUrl>
+
+let wikiString (str : string) =
+    if str.Contains "[" then str.Substring(0, str.IndexOf "[") else str
+
+let wikiParse tryParse err str =
+    let str = wikiString str
+    match tryParse str with
+    | Some res -> Ok res
+    | None -> Error (err str)
+
+let wikiVersion = wikiParse Version.parse (sprintf "Couldn't parse '%s' as a version")
+let wikiDate = wikiParse DateTime.tryParse (sprintf "Couldn't parse '%s' as a date")
+
+let rowToRelease (wikiRow : Wikipedia.OverviewOfNetFrameworkReleaseHistory123.Row) =
+    let (|*>) x f = Option.bindResult "Value is None" f x
+    monad {
+        let! version = wikiRow.``Version number`` |*> wikiVersion
+        let! date = wikiRow.``Release date`` |*> wikiDate
+        let! clr = wikiRow.``CLR version`` |> string |> Some |*> wikiVersion
+        let windows = wikiRow.``Included in - Windows``
+        let server = wikiRow.``Included in - Windows Server``
+        let installWindows = wikiRow.``Can be installed on[4] - Windows`` |> Option.map (String.split ',') |> Option.defaultValue []
+        let installServer = wikiRow.``Can be installed on[4] - Windows Server`` |> Option.map (String.split ',') |> Option.defaultValue []
+        return 
+            { Version = version
+              ReleaseDate = date
+              ClrVersion = clr
+              IncludedInWindows = windows
+              IncludedInServer = server
+              InstallableOnWindows = installWindows
+              InstallableOnServer = installServer
+              ReleaseNotes = None
+              NewFeaturesLink = None
+              NewAccessibilityLink = None }
+    }
 
 let tryGetReleases config =
     async {
-        return Ok []
+        let! wiki = Wikipedia.AsyncGetSample()
+        return
+            wiki.Tables.``Overview of .NET Framework release history[1][2][3]``.Rows
+            |> List.ofArray
+            |> List.map (fun row -> 
+                rowToRelease row 
+                |> Result.mapError (sprintf "Error parsing Framework %A: %s" row.``Version number``))
+            |> Result.allOk
     }
 
 // Pages
