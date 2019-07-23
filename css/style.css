@@ -313,6 +313,10 @@ section h1 {
     .mono-table tbody tr {
         grid-template: repeat(3, auto) / auto;
     }
+
+    .framework-table tbody tr {
+        grid-template: auto / auto;
+    }
 }
 
 /* Status indicator */

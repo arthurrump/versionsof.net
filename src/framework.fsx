@@ -1,4 +1,5 @@
 module Framework
+open System.Text.RegularExpressions
 
 #load "../.fake/build.fsx/intellisense.fsx"
 #if !FAKE
@@ -45,31 +46,41 @@ type Release =
 let [<Literal>] wikipediaUrl = "https://en.wikipedia.org/wiki/Template:.NET_Framework_version_history"
 let [<Literal>] msDocsUrl = "https://docs.microsoft.com/en-us/dotnet/framework/migration-guide/versions-and-dependencies"
 
-type Wikipedia = HtmlProvider<wikipediaUrl, PreferOptionals = true>
+type Wikipedia = HtmlProvider<wikipediaUrl>
 type MsDocs = HtmlProvider<msDocsUrl>
 
-let wikiString (str : string) =
-    if str.Contains "[" then str.Substring(0, str.IndexOf "[") else str
+let wikiString =
+    let regex = new Regex @"\[[^\]]*\]\s*"
+    fun (str : string) ->
+        if str.Contains "N/A" 
+        then None 
+        else Some (regex.Replace(str, String.Empty))
 
 let wikiParse tryParse err str =
-    let str = wikiString str
-    match tryParse str with
+    match str |> wikiString |> Option.bind tryParse with
     | Some res -> Ok res
     | None -> Error (err str)
 
 let wikiVersion = wikiParse Version.parse (sprintf "Couldn't parse '%s' as a version")
 let wikiDate = wikiParse DateTime.tryParse (sprintf "Couldn't parse '%s' as a date")
 
+let wikiList = 
+    wikiString 
+    >> Option.map (fun s -> 
+        s.Split([| ',' |], StringSplitOptions.RemoveEmptyEntries)
+        |> List.ofArray
+        |> List.map String.trim)
+    >> Option.defaultValue []
+
 let rowToRelease (wikiRow : Wikipedia.OverviewOfNetFrameworkReleaseHistory123.Row) =
-    let (|*>) x f = Option.bindResult "Value is None" f x
     monad {
-        let! version = wikiRow.``Version number`` |*> wikiVersion
-        let! date = wikiRow.``Release date`` |*> wikiDate
-        let! clr = wikiRow.``CLR version`` |> string |> Some |*> wikiVersion
-        let windows = wikiRow.``Included in - Windows``
-        let server = wikiRow.``Included in - Windows Server``
-        let installWindows = wikiRow.``Can be installed on[4] - Windows`` |> Option.map (String.split ',') |> Option.defaultValue []
-        let installServer = wikiRow.``Can be installed on[4] - Windows Server`` |> Option.map (String.split ',') |> Option.defaultValue []
+        let! version = wikiRow.``Version number`` |> wikiVersion
+        let! date = wikiRow.``Release date`` |> wikiDate
+        let! clr = wikiRow.``CLR version`` |> string |> wikiVersion
+        let windows = wikiRow.``Included in - Windows`` |> wikiString
+        let server = wikiRow.``Included in - Windows Server`` |> wikiString
+        let installWindows = wikiRow.``Can be installed on[4] - Windows`` |> wikiList
+        let installServer = wikiRow.``Can be installed on[4] - Windows Server`` |> wikiList
         return 
             { Version = version
               ReleaseDate = date
@@ -146,6 +157,9 @@ let private releasesTable releases =
             thead [] [ tr [] [
                 th [] [ str "Version" ]
                 th [] [ str "Release date" ]
+                th [] [ str "CLR Version" ]
+                th [] [ str "Included in Windows" ]
+                th [] [ str "Included in Windows Server" ]
             ] ]
             tbody [] [
                 for rel in releases -> tr [ _onclick (sprintf "location.pathname = '%s';" (releaseUrl rel)) ] [
@@ -153,6 +167,26 @@ let private releasesTable releases =
                     td [ _class "rel-date" ] [
                         yield span [ _class "label" ] [ str "Released on " ]
                         yield strf "%a" date rel.ReleaseDate
+                    ]
+                    td [ _class "clr" ] [
+                        span [ _class "label" ] [ str "CLR Version: " ]
+                        strf "%O" rel.ClrVersion
+                    ]
+                    td [ _class ("windows" + if rel.IncludedInWindows.IsNone then " unknown" else "") ] [
+                        match rel.IncludedInWindows with
+                        | Some windows ->
+                            yield span [ _class "label" ] [ str "Included in Windows " ]
+                            yield str windows
+                        | None ->
+                            yield str "-"
+                    ]
+                    td [ _class ("server" + if rel.IncludedInServer.IsNone then " unknown" else "") ] [
+                        match rel.IncludedInServer with
+                        | Some server ->
+                            yield span [ _class "label" ] [ str "Included in Windows Server " ]
+                            yield str server
+                        | None ->
+                            yield str "-"
                     ]
                 ]
             ]
@@ -192,7 +226,26 @@ let content = function
         div [ _class "inner-container" ] [
             h1 [ _class "inner-spaced" ] [ strf "Release %O" rel.Version ]
             ul [ _class "props-list" ] [
-                li [] [ strf "Released on %a" date rel.ReleaseDate ]
+                yield li [] [ strf "Released on %a" date rel.ReleaseDate ]
+                yield li [] [ strf "CLR Version %O" rel.ClrVersion ]
+                match rel.IncludedInWindows with
+                | Some windows -> yield li [] [ strf "Included in Windows %s" windows ]
+                | None -> ()
+                match rel.InstallableOnWindows with
+                | [] -> ()
+                | ws -> yield li [] [ ws |> String.concat ", " |> strf "Installable on Windows %s" ]
+                match rel.IncludedInServer with
+                | Some server -> yield li [] [ strf "Included in Windows Server %s" server ]
+                | None -> ()
+                match rel.InstallableOnServer with
+                | [] -> ()
+                | ws -> yield li [] [ ws |> String.concat ", " |> strf "Installable on Windows Server %s" ]
+                match rel.NewFeaturesLink with
+                | Some link -> yield li [] [ a [ _href link ] [ str "New features" ] ]
+                | None -> ()
+                match rel.NewAccessibilityLink with
+                | Some link -> yield li [] [ a [ _href link ] [ str "New in accessibility" ] ]
+                | None -> ()
             ]
         ]
        

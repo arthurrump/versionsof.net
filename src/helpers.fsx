@@ -58,11 +58,6 @@ module DateTime =
 
 let (|DateTime|_|) = DateTime.tryParse
 
-module Option =
-    let bindResult err f = function
-        | Some x -> f x
-        | None -> Error err
-
 // Site configuration
 /////////////////////
 let now = DateTime.UtcNow
