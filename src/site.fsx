@@ -197,6 +197,7 @@ let template (site : StaticSite<Config, Page>) page =
                     ]
                     nav [ _id "main-nav" ] [
                         navItem ".NET Core" "/core/"
+                        navItem ".NET Framework" "/framework/"
                         navItem "Mono" "/mono/"
                     ]
                 ]
