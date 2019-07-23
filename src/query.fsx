@@ -10,6 +10,7 @@ module Query
 open Helpers
 
 #load "core.fsx"
+#load "framework.fsx"
 #load "mono.fsx"
 
 open Fake.StaticGen
@@ -131,18 +132,60 @@ module Core =
                             VsVersion = rt.VsVersion } ]
         |> List.sortByDescending (fun rt -> rt.ReleaseDate)
 
-    let getReleases channels =
-        channels
-        |> List.map (fun ch -> ch.Releases)
-        |> List.concat
-        |> List.map (fun rel ->
+    let getReleases =
+        List.map (fun ch -> ch.Releases)
+        >> List.concat
+        >> List.map (fun rel ->
             { Version = rel.ReleaseVersion
               ReleaseDate = rel.ReleaseDate
               Runtime = rel.Runtime |> Option.map (fun rt -> rt.Version)
               Sdks = Core.allSdks rel |> List.map (fun sdk -> sdk.Version)
               AspRuntime = rel.AspnetcoreRuntime |> Option.map (fun asp -> asp.Version)
               Cves = rel.CveList |> List.map (fun cve -> cve.CveId) })
-        |> List.sortByDescending (fun rel -> rel.ReleaseDate)
+        >> List.sortByDescending (fun rel -> rel.ReleaseDate)
+
+// .NET Framework
+/////////////////
+module Framework =
+    type Release =
+        { Version : Version
+          ReleaseDate : DateTime
+          ClrVersion : Version
+          IncludedInWindows : string option
+          IncludedInServer : string option
+          InstallableOnWindows : string list
+          InstallableOnServer : string list }
+
+        static member Encoder rel =
+            Encode.object [
+                yield "version", Encode.string (string rel.Version)
+                yield "date", Encode.datetime rel.ReleaseDate
+                yield "clr", Encode.string (string rel.ClrVersion)
+                match rel.IncludedInWindows with Some win -> yield "windows", Encode.string win | _ -> ()
+                match rel.IncludedInServer with Some ser -> yield "server", Encode.string ser | _ -> ()
+                yield "windows-inst", Encode.list (rel.InstallableOnWindows |> List.map Encode.string)
+                yield "server-inst", Encode.list (rel.InstallableOnServer |> List.map Encode.string)
+            ]
+
+        static member Decoder =
+            Decode.object (fun get ->
+                { Version = get.Required.Field "version" Decode.version
+                  ReleaseDate = get.Required.Field "date" Decode.datetime
+                  ClrVersion = get.Required.Field "clr" Decode.version
+                  IncludedInWindows = get.Optional.Field "windows" Decode.string
+                  IncludedInServer = get.Optional.Field "server" Decode.string
+                  InstallableOnWindows = get.Required.Field "windows-inst" (Decode.list Decode.string)
+                  InstallableOnServer = get.Required.Field "server-inst" (Decode.list Decode.string) })
+
+    let getReleases : Framework.Release list -> Release list =
+        List.map (fun rel ->
+            { Version = rel.Version
+              ReleaseDate = rel.ReleaseDate
+              ClrVersion = rel.ClrVersion
+              IncludedInWindows = rel.IncludedInWindows
+              IncludedInServer = rel.IncludedInServer
+              InstallableOnWindows = rel.InstallableOnWindows
+              InstallableOnServer = rel.InstallableOnServer })
 
 // Mono
 ///////
@@ -162,19 +205,19 @@ module Mono =
                 { Version = get.Required.Field "version" Decode.version
                   ReleaseDate = get.Required.Field "date" Mono.ReleaseDate.Decoder })
     
-    let getReleases (releases : Mono.Release list) =
-        releases
-        |> List.map (fun rel ->
+    let getReleases : Mono.Release list -> Release list =
+        List.map (fun rel ->
             { Version = rel.Version
               ReleaseDate = rel.ReleaseDate })
 
 // Query files
 //////////////
-let getDataFiles coreChannels monoReleases =
+let getDataFiles coreChannels frameworkReleases monoReleases =
     let jsonFile path encoder objects =
         { Url = path
           Content = List.map encoder objects |> Encode.list |> Encode.toString 0 |> Encoding.UTF8.GetBytes }
     [ coreChannels |> Core.getSdks |> jsonFile "/query/core/sdks.json" Core.Sdk.Encoder   
       coreChannels |> Core.getRuntimes |> jsonFile "/query/core/runtimes.json" Core.Runtime.Encoder  
       coreChannels |> Core.getReleases |> jsonFile "/query/core/releases.json" Core.Release.Encoder
+      frameworkReleases |> Framework.getReleases |> jsonFile "/query/framework/releases.json" Framework.Release.Encoder
       monoReleases |> Mono.getReleases |> jsonFile "/query/mono/releases.json" Mono.Release.Encoder ]
