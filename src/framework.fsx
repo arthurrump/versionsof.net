@@ -18,6 +18,7 @@ open System.Text.RegularExpressions
 
 open FSharp.Data
 open FSharpPlus.Builders
+open FSharpPlus.Data
 open Markdig
 open NetCore.Versions
 open NetCore.Versions.Data
@@ -94,11 +95,18 @@ let findLinkUrl text : HtmlNode list -> string option =
     List.tryFind (fun a -> a.DirectInnerText().Trim() = text)
     >> Option.bind (docsLinkToUrl msDocsUrl)
 
+let getReleaseNotesMarkdown (urlOption : string option) =
+    match urlOption with
+    | Some url when url.EndsWith ".md" -> 
+        downloadGh "plain/text" url |> Async.map (Result.map Some)
+    | Some _ | None -> 
+        async { return Ok None }
+
 let rowToRelease (wikiRow : Wikipedia.OverviewOfNetFrameworkReleaseHistory123.Row) (docsRow : HtmlNode) =
     monad {
-        let! version = wikiRow.``Version number`` |> wikiVersion
-        let! date = wikiRow.``Release date`` |> wikiDate
-        let! clr = wikiRow.``CLR version`` |> string |> wikiVersion
+        let! version = async { return wikiRow.``Version number`` |> wikiVersion } |> ResultT
+        let! date = async { return wikiRow.``Release date`` |> wikiDate } |> ResultT
+        let! clr = async { return wikiRow.``CLR version`` |> string |> wikiVersion } |> ResultT
         let windows = wikiRow.``Included in - Windows`` |> wikiString
         let server = wikiRow.``Included in - Windows Server`` |> wikiString
         let installWindows = wikiRow.``Can be installed on[4] - Windows`` |> wikiList
@@ -109,6 +117,7 @@ let rowToRelease (wikiRow : Wikipedia.OverviewOfNetFrameworkReleaseHistory123.Ro
         let accessibility = links |> findLinkUrl "New in accessibility"
 
         let releaseNotes = links |> findLinkUrl "Release notes"
+        let! releaseNotesMarkdown = getReleaseNotesMarkdown releaseNotes |> ResultT
         
         return 
             { Version = version
@@ -118,13 +127,14 @@ let rowToRelease (wikiRow : Wikipedia.OverviewOfNetFrameworkReleaseHistory123.Ro
               IncludedInServer = server
               InstallableOnWindows = installWindows
               InstallableOnServer = installServer
-              ReleaseNotes = releaseNotes |> Option.map (fun url -> { Link = url; Markdown = None })
+              ReleaseNotes = releaseNotes |> Option.map (fun url -> { Link = url; Markdown = releaseNotesMarkdown })
               NewFeaturesLink = features
               NewAccessibilityLink = accessibility }
-    }
+    } |> ResultT.run
 
 let getVersion (docRow : HtmlNode) =
     docRow.CssSelect("td").Head.DirectInnerText().Split('\n').[0].Trim()
+
 
 let tryGetReleases config =
     let nv = Version.parse >> Option.map (Version.pad 3)
@@ -133,7 +143,7 @@ let tryGetReleases config =
         let! msDocs = MsDocs.AsyncGetSample()
         let docsTable = msDocs.Html.CssSelect("main#main table") |> List.head
         let docsRows = docsTable.CssSelect("tbody tr")
-        return
+        return!
             wiki.Tables.``Overview of .NET Framework release history[1][2][3]``.Rows
             |> List.ofArray
             |> List.map (fun row -> 
@@ -141,8 +151,9 @@ let tryGetReleases config =
                     docsRows 
                     |> List.find (fun r -> nv (getVersion r) = nv row.``Version number``)
                 rowToRelease row drow
-                |> Result.mapError (sprintf "Error parsing Framework %A: %s" row.``Version number``))
-            |> Result.allOk
+                |> Async.map (Result.mapError (sprintf "Error parsing Framework %A: %s" row.``Version number``)))
+            |> Async.Parallel
+            |> Async.map (Array.toList >> Result.allOk)
     }
 
 // Pages
@@ -285,6 +296,26 @@ let content = function
                 match rel.NewAccessibilityLink with
                 | Some link -> yield li [] [ a [ _href link ] [ str "New in accessibility" ] ]
                 | None -> ()
+            ]
+            section [ _class "release-notes" ] [
+                match rel.ReleaseNotes with
+                | Some { Link = url; Markdown = Some md } ->
+                    yield div [ _class "header-box inner-spaced" ] [
+                        h2 [] [ str "Release notes" ]
+                        span [] [ str "("; a [ _href url ] [ str "Source" ]; str ")" ]
+                    ]
+                    yield article [ _class "text" ] [ rawText (Markdown.ToHtml(md, mdPipeline url)) ]
+                | Some { Link = url } ->
+                    yield h2 [ _class "inner-spaced" ] [ str "Release notes" ]
+                    yield p [ _class "text" ] [ 
+                        str "These release notes could not be displayed. Find them here: "
+                        a [ _href url ] [ str "Release notes" ] 
+                    ]
+                | None ->
+                    yield h2 [ _class "inner-spaced" ] [ str "Release notes" ]
+                    yield p [ _class "text" ] [
+                        strf "No release notes available for %O" rel.Version
+                    ]
             ]
         ]
        
