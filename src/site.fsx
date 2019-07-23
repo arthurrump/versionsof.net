@@ -1,4 +1,6 @@
 module Site
+open FSharpPlus.Builders
+open FSharpPlus.Data
 
 #load "../.fake/build.fsx/intellisense.fsx"
 #if !FAKE
@@ -41,27 +43,22 @@ let getHomePage channels frameworkReleases monoReleases =
     { Url = "/"; Content = HomePage (Core.getInfo channels, Framework.getInfo frameworkReleases, Mono.getInfo monoReleases) }
 
 let tryGetPagesAndFiles config = 
-    async {
-        match! Core.tryGetChannels config.ReleasesIndexUrl with
-        | Ok coreChannels ->
-            match! Mono.tryGetReleases config with
-            | Ok monoReleases ->
-                match! Framework.tryGetReleases config with
-                | Ok frameworkReleases ->
-                    let! coreRelNotes = Core.tryGetReleaseNotes coreChannels
-                    let corePages = Result.map (Core.channelsToPages coreChannels >> Page.mapl CorePage) coreRelNotes
-                    let frameworkPages = Framework.releasesToPages frameworkReleases |> Page.mapl FrameworkPage
-                    let monoPages = Mono.releasesToPages monoReleases |> Page.mapl MonoPage
-                    let homePage = getHomePage coreChannels frameworkReleases monoReleases
-                    let queryJson = Query.getDataFiles coreChannels monoReleases
-                    return Result.map (fun cps -> homePage::cps @ frameworkPages @ monoPages, queryJson) corePages
-                | Error e ->
-                    return Error e
-            | Error e ->
-                return Error e
-        | Error e -> 
-            return Error e
-    }
+    monad {
+        let! coreChannels = ResultT <| Core.tryGetChannels config.ReleasesIndexUrl 
+        let! coreRelNotes = ResultT <| Core.tryGetReleaseNotes coreChannels
+        let corePages = Core.channelsToPages coreChannels coreRelNotes |> Page.mapl CorePage
+
+        let! frameworkReleases = ResultT <| Framework.tryGetReleases config
+        let frameworkPages = Framework.releasesToPages frameworkReleases |> Page.mapl FrameworkPage
+
+        let! monoReleases = ResultT <| Mono.tryGetReleases config
+        let monoPages = Mono.releasesToPages monoReleases |> Page.mapl MonoPage
+
+        let homePage = getHomePage coreChannels frameworkReleases monoReleases
+        let queryJson = Query.getDataFiles coreChannels monoReleases
+
+        return homePage::corePages @ frameworkPages @ monoPages, queryJson
+    } |> ResultT.run
 
 let getBreadcrumbs = 
     let home = (".NET", "/")
