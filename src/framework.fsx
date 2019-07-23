@@ -136,7 +136,7 @@ let getVersion (docRow : HtmlNode) =
     docRow.CssSelect("td").Head.DirectInnerText().Split('\n').[0].Trim()
 
 
-let tryGetReleases config =
+let tryGetReleases () =
     let nv = Version.parse >> Option.map (Version.pad 3)
     async {
         let! wiki = Wikipedia.AsyncGetSample()

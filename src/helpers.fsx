@@ -66,8 +66,6 @@ let (|DateTime|_|) = DateTime.tryParse
 
 // Site configuration
 /////////////////////
-let now = DateTime.UtcNow
-
 type Config =
     { ReleasesIndexUrl : string
       Title : string
@@ -75,6 +73,8 @@ type Config =
 
       MonoRepo : string
       MonoPath : string
+
+      Year : int
       
       // Secrets, defined in secrets.toml
       GitHubClientId : string
@@ -88,6 +88,8 @@ let parseConfig config =
 
       MonoRepo = toml.["mono-repo"].Get()
       MonoPath = toml.["mono-path"].Get()
+
+      Year = let now = DateTime.UtcNow in now.Year
       
       GitHubClientId = toml.["gh-client-id"].Get()
       GitHubClientSecret = toml.["gh-client-secret"].Get() }
@@ -139,7 +141,7 @@ let mdPipeline (file : string) =
                 file.Substring(0, file.LastIndexOf('/')) + "/" + link.Url)
         .Build()
 
-let date () (d : DateTime) = d.ToLocalTime().ToString "yyyy-MM-dd"
+let date () (d : DateTime) = let local = d.ToLocalTime() in local.ToString "yyyy-MM-dd"
 
 let indicatorSymb symb text clas = 
     div [ _class "status-box" ] [ 

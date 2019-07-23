@@ -44,11 +44,11 @@ let getHomePage channels frameworkReleases monoReleases =
 
 let tryGetPagesAndFiles config = 
     monad {
-        let! coreChannels = ResultT <| Core.tryGetChannels config.ReleasesIndexUrl 
+        let! coreChannels = ResultT <| Core.tryGetChannels config.ReleasesIndexUrl
         let! coreRelNotes = ResultT <| Core.tryGetReleaseNotes coreChannels
         let corePages = Core.channelsToPages coreChannels coreRelNotes |> Page.mapl CorePage
 
-        let! frameworkReleases = ResultT <| Framework.tryGetReleases config
+        let! frameworkReleases = ResultT <| Framework.tryGetReleases ()
         let frameworkPages = Framework.releasesToPages frameworkReleases |> Page.mapl FrameworkPage
 
         let! monoReleases = ResultT <| Mono.tryGetReleases config
@@ -168,7 +168,7 @@ let template (site : StaticSite<Config, Page>) page =
             meta [ _name "title"; _content titleText ]
             meta [ _name "description"; _content (description + site.Config.Description) ]
             meta [ _name "keywords"; _content (keywords |> String.concat ",") ]
-            meta [ _name "copyright"; _content (sprintf "Copyright %i %s" now.Year "Arthur Rump and .NET Foundation") ]
+            meta [ _name "copyright"; _content (sprintf "Copyright %i %s" site.Config.Year "Arthur Rump and .NET Foundation") ]
             meta [ _name "generator"; _content "Fake.StaticGen" ]
             meta [ _name "viewport"; _content "width=device-width, initial-scale=1" ]
             link [ _rel "canonical"; _href (site.AbsoluteUrl page.Url) ]
