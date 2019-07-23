@@ -254,6 +254,7 @@ section h1 {
             .overview-table tbody td {
                 display: inline;
                 padding: 0;
+                white-space: normal;
             }
 
                 .overview-table tbody td.unknown {
