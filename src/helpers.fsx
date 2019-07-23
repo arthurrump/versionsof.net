@@ -37,6 +37,12 @@ module Version =
         | Some prev -> { version with Preview = Some (prev.Split('-').[0]) }
         | None -> version
 
+    let pad length version =
+        if length > version.Numbers.Length then
+            { version with Numbers = List.append version.Numbers (List.replicate (length - version.Numbers.Length) 0) }
+        else
+            version
+
 module Decode =
     let version path value =
         match Decode.string path value with

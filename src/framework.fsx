@@ -1,5 +1,4 @@
 module Framework
-open System.Text.RegularExpressions
 
 #load "../.fake/build.fsx/intellisense.fsx"
 #if !FAKE
@@ -13,17 +12,15 @@ open Helpers
 open Fake.Core
 open Fake.StaticGen
 open Fake.StaticGen.Html.ViewEngine
-open Fake.StaticGen.Markdown
 
 open System
+open System.Text.RegularExpressions
 
 open FSharp.Data
 open FSharpPlus.Builders
 open Markdig
 open NetCore.Versions
 open NetCore.Versions.Data
-open Nett
-open Thoth.Json.Net
 
 // Data
 ///////
@@ -47,10 +44,10 @@ let [<Literal>] wikipediaUrl = "https://en.wikipedia.org/wiki/Template:.NET_Fram
 let [<Literal>] msDocsUrl = "https://docs.microsoft.com/en-us/dotnet/framework/migration-guide/versions-and-dependencies"
 
 type Wikipedia = HtmlProvider<wikipediaUrl>
-type MsDocs = HtmlProvider<msDocsUrl>
+type MsDocs = HtmlProvider<msDocsUrl, IncludeLayoutTables = true>
 
 let wikiString =
-    let regex = new Regex @"\[[^\]]*\]\s*"
+    let regex = new Regex(@"\[[^\]]*\]")
     fun (str : string) ->
         if str.Contains "N/A" 
         then None 
@@ -72,7 +69,32 @@ let wikiList =
         |> List.map String.trim)
     >> Option.defaultValue []
 
-let rowToRelease (wikiRow : Wikipedia.OverviewOfNetFrameworkReleaseHistory123.Row) =
+let docsLinkToUrl (docUrl : string) (link : HtmlNode) =
+    let rec combineUrl (baseUrl : string) (suffix : string) =
+        let baseUrl = baseUrl.TrimEnd('/').Substring(0, baseUrl.LastIndexOf '/')
+        if suffix.StartsWith("../") 
+        then combineUrl baseUrl (suffix.Substring(3))
+        else baseUrl + "/" + suffix
+
+    monad {
+        let! href = link.TryGetAttribute "href"
+        let url = href.Value()
+        let! linkType = link.TryGetAttribute "data-linktype"
+        match linkType.Value() with
+        | "relative-path" -> 
+            return combineUrl docUrl url
+        | "external" -> 
+            return url
+        | other ->
+            Trace.traceImportantfn "Framework: Unknown linktype attribute '%s'" other
+            return! None
+    }
+
+let findLinkUrl text : HtmlNode list -> string option =
+    List.tryFind (fun a -> a.DirectInnerText().Trim() = text)
+    >> Option.bind (docsLinkToUrl msDocsUrl)
+
+let rowToRelease (wikiRow : Wikipedia.OverviewOfNetFrameworkReleaseHistory123.Row) (docsRow : HtmlNode) =
     monad {
         let! version = wikiRow.``Version number`` |> wikiVersion
         let! date = wikiRow.``Release date`` |> wikiDate
@@ -81,6 +103,13 @@ let rowToRelease (wikiRow : Wikipedia.OverviewOfNetFrameworkReleaseHistory123.Ro
         let server = wikiRow.``Included in - Windows Server`` |> wikiString
         let installWindows = wikiRow.``Can be installed on[4] - Windows`` |> wikiList
         let installServer = wikiRow.``Can be installed on[4] - Windows Server`` |> wikiList
+
+        let links = docsRow.CssSelect("td").Head.CssSelect("a")
+        let features = links |> findLinkUrl "New features"
+        let accessibility = links |> findLinkUrl "New in accessibility"
+
+        let releaseNotes = links |> findLinkUrl "Release notes"
+        
         return 
             { Version = version
               ReleaseDate = date
@@ -89,19 +118,29 @@ let rowToRelease (wikiRow : Wikipedia.OverviewOfNetFrameworkReleaseHistory123.Ro
               IncludedInServer = server
               InstallableOnWindows = installWindows
               InstallableOnServer = installServer
-              ReleaseNotes = None
-              NewFeaturesLink = None
-              NewAccessibilityLink = None }
+              ReleaseNotes = releaseNotes |> Option.map (fun url -> { Link = url; Markdown = None })
+              NewFeaturesLink = features
+              NewAccessibilityLink = accessibility }
     }
 
+let getVersion (docRow : HtmlNode) =
+    docRow.CssSelect("td").Head.DirectInnerText().Split('\n').[0].Trim()
+
 let tryGetReleases config =
+    let nv = Version.parse >> Option.map (Version.pad 3)
     async {
         let! wiki = Wikipedia.AsyncGetSample()
+        let! msDocs = MsDocs.AsyncGetSample()
+        let docsTable = msDocs.Html.CssSelect("main#main table") |> List.head
+        let docsRows = docsTable.CssSelect("tbody tr")
         return
             wiki.Tables.``Overview of .NET Framework release history[1][2][3]``.Rows
             |> List.ofArray
             |> List.map (fun row -> 
-                rowToRelease row 
+                let drow = 
+                    docsRows 
+                    |> List.find (fun r -> nv (getVersion r) = nv row.``Version number``)
+                rowToRelease row drow
                 |> Result.mapError (sprintf "Error parsing Framework %A: %s" row.``Version number``))
             |> Result.allOk
     }
