@@ -3,24 +3,32 @@ module Query.App
 open Elmish
 open Bolero
 open Bolero.Html
+open FParsec
+open Parser
 
 type Model =
-    { Num : int }
+    { Query : string
+      Parsed : ParserResult<Pipeline, unit> }
 
-let initModel = { Num = 0 }
+let initModel = 
+    { Query = ""
+      Parsed = parsePipeline "" }
 
-type Message = Increase | Decrease
+type Message = 
+    | UpdateQuery of string
 
 let update message model =
     match message with
-    | Increase -> { model with Num = model.Num + 1 }
-    | Decrease -> { model with Num = model.Num - 1 }
+    | UpdateQuery q -> { model with Query = q; Parsed = parsePipeline q }
 
 let view model dispatch = 
     div [] [
-        button [ on.click (fun _ -> dispatch Increase ) ] [ text "+" ]
-        span [] [ textf "Count: %i" model.Num ]
-        button [ on.click (fun _ -> dispatch Decrease ) ] [ text "-" ]
+        textarea 
+            [ on.change (fun args -> dispatch (UpdateQuery (unbox args.Value)))
+              attr.style "font-family: Consolas;" ] 
+            [ text model.Query ]
+        pre [ attr.style "font-family: Consolas;" ] 
+            [ textf "%A" model.Parsed ]
     ]
 
 type App() =

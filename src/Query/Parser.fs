@@ -37,36 +37,29 @@ let pLiteral = pStringLiteral <|> pVersionLiteral <|> pDateLiteral
 
 let pCompOperator = 
     "comparison operator" |> choiceL 
-        [ pstring "="  >>% Equal
-          pstring "==" >>% Equal
+        [ pstring "==" >>% Equal
+          pstring "="  >>% Equal
           pstring "!=" >>% NotEqual
           pstring "<>" >>% NotEqual
-          pstring "<"  >>% Less
           pstring "<=" >>% LessEqual
-          pstring ">"  >>% Greater
-          pstring ">=" >>% GreaterEqual ]
-
-let (<!>) (p: Parser<_,_>) label : Parser<_,_> =
-    fun stream ->
-        printfn "%A: Entering %s" stream.Position label
-        let reply = p stream
-        printfn "%A: Leaving %s (%A)" stream.Position label reply.Status
-        reply
+          pstring "<"  >>% Less
+          pstring ">=" >>% GreaterEqual
+          pstring ">"  >>% Greater ]
 
 let pExpression, pExpressionImpl = createParserForwardedToRef()
 let pNegation = (pstring "!" <|> (pstringCI "not" .>> spaces1)) >>. pExpression |>> Negation
 let pBasicExpression =
     choice 
-        [ pNegation <!> "negation"
-          (pIdentifier |>> Field) <!> "identifier"
-          (pLiteral |>> Literal) <!> "literal"
+        [ pNegation
+          (pIdentifier |>> Field)
+          (pLiteral |>> Literal)
           between (pchar '(') (pchar ')') pExpression ]
     |> ws
 
 let pComparison = pipe3 pBasicExpression pCompOperator pExpression (fun ex1 op ex2 -> Comparison (ex1, op, ex2))
 pExpressionImpl :=
     "expression" |> choiceL 
-        [ attempt pComparison <!> "comparison"
+        [ attempt pComparison
           pBasicExpression ]
     |> ws
 
@@ -78,10 +71,3 @@ let pOperation =
 let pPipeline = pipe2 (ws pIdentifier) (many (ws (pchar '|') >>. pOperation) .>> eof) (fun id ops -> { DataSource = id; Operations = ops })
 
 let parsePipeline text = run pPipeline text
-
-// [<EntryPoint>]
-// let main argv =
-//     parsePipeline "sdks | where version > 1.2.3-hello\r\n | where \tsdk = runtime = security   \t| select runtime, date"
-//     |> printfn "%A"
-
-//     0
