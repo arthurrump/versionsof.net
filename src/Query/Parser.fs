@@ -1,4 +1,4 @@
-﻿module Query
+﻿module Query.Parser
 
 open FParsec
 open System
@@ -79,9 +79,9 @@ let pPipeline = pipe2 (ws pIdentifier) (many (ws (pchar '|') >>. pOperation) .>>
 
 let parsePipeline text = run pPipeline text
 
-[<EntryPoint>]
-let main argv =
-    parsePipeline "sdks | where version > 1.2.3-hello\r\n | where \tsdk = runtime = security   \t| select runtime, date"
-    |> printfn "%A"
+// [<EntryPoint>]
+// let main argv =
+//     parsePipeline "sdks | where version > 1.2.3-hello\r\n | where \tsdk = runtime = security   \t| select runtime, date"
+//     |> printfn "%A"
 
-    0
+//     0

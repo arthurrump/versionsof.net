@@ -1,4 +1,4 @@
-namespace Query.Client
+module Query.Startup
 
 open Microsoft.AspNetCore.Blazor.Hosting
 open Microsoft.AspNetCore.Components.Builder
@@ -11,14 +11,12 @@ type Startup() =
         services.AddRemoting()
 
     member __.Configure(app: IComponentsApplicationBuilder) =
-        app.AddComponent<Main.MyApp>("#main")
+        app.AddComponent<App.App>("#main")
 
-module Program =
-
-    [<EntryPoint>]
-    let Main args =
-        BlazorWebAssemblyHost.CreateDefaultBuilder()
-            .UseBlazorStartup<Startup>()
-            .Build()
-            .Run()
-        0
+[<EntryPoint>]
+let main args =
+    BlazorWebAssemblyHost.CreateDefaultBuilder()
+        .UseBlazorStartup<Startup>()
+        .Build()
+        .Run()
+    0

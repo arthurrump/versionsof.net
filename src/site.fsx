@@ -55,7 +55,7 @@ let tryGetPagesAndFiles config =
         let monoPages = Mono.releasesToPages monoReleases |> Page.mapl MonoPage
 
         let homePage = getHomePage coreChannels frameworkReleases monoReleases
-        let queryJson = Query.getDataFiles coreChannels frameworkReleases monoReleases
+        let queryJson = Query.Files.getDataFiles coreChannels frameworkReleases monoReleases
 
         return homePage::corePages @ frameworkPages @ monoPages, queryJson
     } |> ResultT.run
