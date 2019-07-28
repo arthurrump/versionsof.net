@@ -27,6 +27,8 @@ and Literal =
     | VersionLiteral of Version
     | DateLiteral of DateTime
 
+type CodeStyle = Cs | Fs | Vb
+
 module private Parser =
     open FParsec
 
@@ -35,7 +37,7 @@ module private Parser =
 
     let pIdentifier = many1SatisfyL (fun c -> isAsciiLetter c || c = '.' || c = '-') "identifier"
 
-    let pNoneLiteral = "'none'" |> choiceL [ pstringCI "none"; pstringCI "null" ] >>% NoneLiteral
+    let pNoneLiteral = "'none'" |> choiceL [ pstringCI "none"; pstringCI "null"; pstringCI "nothing" ] >>% NoneLiteral
     let pStringLiteral = between (pchar '"') (pchar '"') (manySatisfy ((<>) '"')) |>> StringLiteral <?> "a string"
     let pVersionLiteral = pipe3 pint32 (many (pchar '.' >>. pint32)) (opt (pchar '-' >>. manySatisfy notSpaces)) (fun n ns pre -> VersionLiteral { Numbers = n::ns; Preview = pre }) <?> "a version"
     let pDateLiteral = pipe3 pint32 (pchar '-' >>. pint32) (pchar '-' >>. pint32) (fun y m d -> DateLiteral (DateTime(y, m, d))) <?> "a date (yyyy-mm-dd)"
@@ -86,6 +88,51 @@ module private Parser =
     let pPipeline = pipe2 (ws pIdentifier) (many (ws (pchar '|') >>. pOperation) .>> eof) (fun id ops -> { DataSource = id; Operations = ops })
 
 let parse = FParsec.CharParsers.run Parser.pPipeline
+
+module PrettyPrint =
+    let prettyLiteral style = function
+        | NoneLiteral -> match style with Cs -> "null" | Fs -> "None" | Vb -> "Nothing"
+        | StringLiteral s -> "\"" + s + "\""
+        | VersionLiteral v -> string v
+        | DateLiteral d -> d.ToString "yyyy-MM-dd"
+
+    let prettyCompOperator style = function
+        | Equal -> match style with Cs -> "==" | Fs | Vb -> "="
+        | NotEqual -> match style with Cs -> "!=" | Fs | Vb -> "<>"
+        | Less -> "<"
+        | LessEqual -> "<="
+        | Greater -> ">"
+        | GreaterEqual -> ">="
+
+    let prettyBoolOperator style = function
+        | And -> match style with Cs | Fs -> "&&" | Vb -> "And"
+        | Or -> match style with Cs | Fs -> "||" | Vb -> "Or"
+
+    let rec prettyExpression style = function
+        | Field name -> 
+            name
+        | Literal lit -> 
+            prettyLiteral style lit
+        | Negation expr -> 
+            (match style with Cs -> "!(" | Fs -> "not (" | Vb -> "Not (") 
+            + prettyExpression style expr 
+            + ")"
+        | BooleanExpression (l, op, r) ->
+            sprintf "(%s %s %s)" (prettyExpression style l) (prettyBoolOperator style op) (prettyExpression style r)
+        | Comparison (l, op, r) ->
+            sprintf "(%s %s %s)" (prettyExpression style l) (prettyCompOperator style op) (prettyExpression style r)
+
+    let prettyOperation style = function
+        | Select fields -> 
+            "| " + (match style with Cs | Vb -> "Select" | Fs -> "select") + " "
+            + (fields |> String.concat ", ")
+        | Where expr ->
+            "| " + (match style with Cs | Vb -> "Where" | Fs -> "where") + " "
+            + (prettyExpression style expr)
+
+    let prettyPipeline style pipeline =
+        pipeline.DataSource + "\n" 
+        + (pipeline.Operations |> List.map (prettyOperation style) |> String.concat "\n")
 
 module private Evaluation =
     open Query.Data

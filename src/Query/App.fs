@@ -45,6 +45,9 @@ let view model dispatch =
             yield pre 
                 [ attr.style "font-family: Consolas; background-color: #fdd;" ] 
                 [ textf "Error:\n%s" mes ]
+        match parse model.Query with
+        | FParsec.CharParsers.Success (p, _, _) -> yield pre [] [ text (PrettyPrint.prettyPipeline Fs p) ]
+        | _ -> ()
     ]
 
 type App() =
