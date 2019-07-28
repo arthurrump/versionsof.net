@@ -99,6 +99,35 @@ module Core =
                   AspRuntime = get.Optional.Field "asp" Decode.version
                   Cves = get.Required.Field "cves" (Decode.list Decode.string) })
 
+    let releases = [
+        { Version = { Numbers = [1;0;0]; Preview = None }
+          ReleaseDate = DateTime(2018, 12, 1)
+          Runtime = Some { Numbers = [1;0;0]; Preview = None }
+          Sdks = [ { Numbers = [1;0;0]; Preview = None } ]
+          AspRuntime = None
+          Cves = [ "CVE-2019-123"; "CVE-2019-124" ] }
+        { Version = { Numbers = [1;1;0]; Preview = None }
+          ReleaseDate = DateTime(2019, 1, 1)
+          Runtime = Some { Numbers = [1;1;0]; Preview = None }
+          Sdks = [ { Numbers = [1;1;0]; Preview = None } ]
+          AspRuntime = Some { Numbers = [1;1;0]; Preview = None }
+          Cves = [] }
+        { Version = { Numbers = [1;2;0]; Preview = None }
+          ReleaseDate = DateTime(2019, 2, 5)
+          Runtime = None
+          Sdks = [ { Numbers = [1;2;0]; Preview = None }
+                   { Numbers = [1;2;1]; Preview = None } ]
+          AspRuntime = None
+          Cves = [ "CVE-2019-126"; "CVE-2019-128" ] }
+        { Version = { Numbers = [2;0;0]; Preview = Some "preview" }
+          ReleaseDate = DateTime(2019, 4, 7)
+          Runtime = Some { Numbers = [2;0;0]; Preview = Some "preview" }
+          Sdks = [ { Numbers = [2;0;0]; Preview = Some "preview" }
+                   { Numbers = [2;0;0]; Preview = Some "preview-2" } ]
+          AspRuntime = None
+          Cves = [ "CVE-2019-123" ] }
+    ]
+
 // .NET Framework
 /////////////////
 module Framework =
