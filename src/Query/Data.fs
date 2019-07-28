@@ -51,6 +51,16 @@ module Core =
                   FsharpVersion = get.Optional.Field "fsharp" Decode.version
                   VbVersion = get.Optional.Field "vb" Decode.version })
 
+        static member FieldMap sdk =
+            [ "version", box sdk.Version
+              "date", box sdk.ReleaseDate
+              "runtime", box (sdk.RuntimeVersion |> Option.map box)
+              "visual-studio", box (sdk.VsVersion |> Option.map box)
+              "csharp", box (sdk.CsharpVersion |> Option.map box)
+              "fsharp", box (sdk.FsharpVersion |> Option.map box)
+              "vb", box (sdk.VbVersion |> Option.map box) ]
+            |> Map.ofList
+
     type Runtime =
         { Version : Version
           ReleaseLink : string // channel/release
@@ -71,6 +81,12 @@ module Core =
                   ReleaseLink = get.Required.Field "release" Decode.string
                   ReleaseDate = get.Required.Field "date" Decode.datetime
                   VsVersion = get.Required.Field "vs" (Decode.list Decode.version) })
+
+        static member FieldMap rt =
+            [ "version", box rt.Version
+              "date", box rt.ReleaseDate
+              "visual-studio", box (rt.VsVersion |> List.map box) ]
+            |> Map.ofList
 
     type Release =
         { Version : Version
@@ -98,6 +114,15 @@ module Core =
                   Sdks = get.Required.Field "sdks" (Decode.list Decode.version)
                   AspRuntime = get.Optional.Field "asp" Decode.version
                   Cves = get.Required.Field "cves" (Decode.list Decode.string) })
+        
+        static member FieldMap rel =
+            [ "version", box rel.Version
+              "date", box rel.ReleaseDate
+              "runtime", box (rel.Runtime |> Option.map box)
+              "sdk", box (rel.Sdks |> List.map box)
+              "asp-runtime", box (rel.AspRuntime |> Option.map box)
+              "cve", box (rel.Cves |> List.map box) ]
+            |> Map.ofList
 
     let releases = [
         { Version = { Numbers = [1;0;0]; Preview = None }
@@ -161,6 +186,16 @@ module Framework =
                   InstallableOnWindows = get.Required.Field "windows-inst" (Decode.list Decode.string)
                   InstallableOnServer = get.Required.Field "server-inst" (Decode.list Decode.string) })
 
+        static member FieldMap rel =
+            [ "version", box rel.Version
+              "date", box rel.ReleaseDate
+              "clr", box rel.ClrVersion
+              "windows-included", box (rel.IncludedInWindows |> Option.map box)
+              "server-included", box (rel.IncludedInServer |> Option.map box)
+              "windows-installable", box (rel.InstallableOnWindows |> List.map box)
+              "server-installable", box (rel.InstallableOnServer |> List.map box) ]
+            |> Map.ofList
+
 // Mono
 ///////
 module Mono =
@@ -181,3 +216,9 @@ module Mono =
                 { Version = get.Required.Field "version" Decode.version
                   ReleaseDate = get.Optional.Field "date" Decode.datetime
                   Skipped = get.Optional.Field "skipped" Decode.bool |> Option.defaultValue false })
+
+        static member FieldMap rel =
+            [ "version", box rel.Version
+              "date", box (rel.ReleaseDate |> Option.map box)
+              "skipped", box rel.Skipped ]
+            |> Map.ofList

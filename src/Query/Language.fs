@@ -204,15 +204,7 @@ module private Evaluation =
     let evalPipeline pipeline =
         match pipeline.DataSource with
         | "core.releases" -> 
-            let toMap (rel : Core.Release) =
-                [ "version", box rel.Version
-                  "date", box rel.ReleaseDate
-                  "runtime", box (rel.Runtime |> Option.map box)
-                  "sdk", box (rel.Sdks |> List.map box)
-                  "asp-runtime", box (rel.AspRuntime |> Option.map box)
-                  "cve", box (rel.Cves |> List.map box) ]
-                |> Map.ofList
-            let data = Core.releases |> List.map toMap
+            let data = Core.releases |> List.map Core.Release.FieldMap
             evalOperations pipeline.Operations data
         // | "core.runtimes" -> Ok ()
         // | "core.sdks" -> Ok ()
