@@ -9,6 +9,7 @@ open Query.Language
 type QueryGen() =
     static let isIdentifier str = 
         str |> String.IsNullOrEmpty |> not
+        && str.StartsWith('.') |> not
         && str |> String.forall (fun c -> (c > 'a' && c < 'z') || (c > 'A' && c < 'Z') || c = '.')
     
     static member Expression() =

@@ -35,7 +35,7 @@ module private Parser =
     let notSpaces = isNoneOf [ ' '; '\t'; '\r'; '\n' ]
     let ws p = spaces >>. p .>> spaces
 
-    let pIdentifier = many1SatisfyL (fun c -> isAsciiLetter c || c = '.' || c = '-') "identifier"
+    let pIdentifier =  many1Satisfy2L isAsciiLetter (fun c -> isAsciiLetter c || c = '.') "identifier"
 
     let pNoneLiteral = 
         "'none'" |> choiceL 

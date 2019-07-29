@@ -55,7 +55,7 @@ module Core =
             [ "version", box sdk.Version
               "date", box sdk.ReleaseDate
               "runtime", box (sdk.RuntimeVersion |> Option.map box)
-              "visual-studio", box (sdk.VsVersion |> Option.map box)
+              "visualStudio", box (sdk.VsVersion |> Option.map box)
               "csharp", box (sdk.CsharpVersion |> Option.map box)
               "fsharp", box (sdk.FsharpVersion |> Option.map box)
               "vb", box (sdk.VbVersion |> Option.map box) ]
@@ -85,7 +85,7 @@ module Core =
         static member FieldMap rt =
             [ "version", box rt.Version
               "date", box rt.ReleaseDate
-              "visual-studio", box (rt.VsVersion |> List.map box) ]
+              "visualStudio", box (rt.VsVersion |> List.map box) ]
             |> Map.ofList
 
     type Release =
@@ -120,7 +120,7 @@ module Core =
               "date", box rel.ReleaseDate
               "runtime", box (rel.Runtime |> Option.map box)
               "sdk", box (rel.Sdks |> List.map box)
-              "asp-runtime", box (rel.AspRuntime |> Option.map box)
+              "aspRuntime", box (rel.AspRuntime |> Option.map box)
               "cve", box (rel.Cves |> List.map box) ]
             |> Map.ofList
 
@@ -190,10 +190,10 @@ module Framework =
             [ "version", box rel.Version
               "date", box rel.ReleaseDate
               "clr", box rel.ClrVersion
-              "windows-included", box (rel.IncludedInWindows |> Option.map box)
-              "server-included", box (rel.IncludedInServer |> Option.map box)
-              "windows-installable", box (rel.InstallableOnWindows |> List.map box)
-              "server-installable", box (rel.InstallableOnServer |> List.map box) ]
+              "windowsIncluded", box (rel.IncludedInWindows |> Option.map box)
+              "serverIncluded", box (rel.IncludedInServer |> Option.map box)
+              "windowsInstallable", box (rel.InstallableOnWindows |> List.map box)
+              "serverInstallable", box (rel.InstallableOnServer |> List.map box) ]
             |> Map.ofList
 
 // Mono
