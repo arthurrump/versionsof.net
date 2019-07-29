@@ -139,7 +139,7 @@ module PrettyPrint =
         | Literal lit -> 
             prettyLiteral style lit
         | Negation expr -> 
-            (match style with Cs -> "!(" | Fs -> "not (" | Vb -> "Not (") 
+            (match style with Cs -> "(!" | Fs -> "(not " | Vb -> "(Not ") 
             + prettyExpression style expr 
             + ")"
         | BooleanExpression (l, op, r) ->
