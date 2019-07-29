@@ -37,10 +37,30 @@ module private Parser =
 
     let pIdentifier = many1SatisfyL (fun c -> isAsciiLetter c || c = '.' || c = '-') "identifier"
 
-    let pNoneLiteral = "'none'" |> choiceL [ pstringCI "none"; pstringCI "null"; pstringCI "nothing" ] >>% NoneLiteral
-    let pStringLiteral = between (pchar '"') (pchar '"') (manySatisfy ((<>) '"')) |>> StringLiteral <?> "a string"
-    let pVersionLiteral = pipe3 pint32 (many (pchar '.' >>. pint32)) (opt (pchar '-' >>. manySatisfy notSpaces)) (fun n ns pre -> VersionLiteral { Numbers = n::ns; Preview = pre }) <?> "a version"
-    let pDateLiteral = pipe3 pint32 (pchar '-' >>. pint32) (pchar '-' >>. pint32) (fun y m d -> DateLiteral (DateTime(y, m, d))) <?> "a date (yyyy-mm-dd)"
+    let pNoneLiteral = 
+        "'none'" |> choiceL 
+            [ pstringCI "none" 
+              pstringCI "null" 
+              pstringCI "nothing" ] 
+        >>% NoneLiteral
+
+    let pStringLiteral = 
+        let normal = manySatisfy (fun c -> c <> '\\' && c <> '"')
+        let escaped = pstring "\\" >>. anyOf "\\\"" |>> string
+        between (pstring "\"") (pstring "\"")
+            (stringsSepBy normal escaped)
+        |>> StringLiteral
+
+    let pVersionLiteral = 
+        sepBy1 pint32 (pchar '.') .>>. opt (pchar '-' >>. manySatisfy notSpaces)
+        |>> fun (ns, pre) -> VersionLiteral { Numbers = ns; Preview = pre }
+        <?> "a version"
+
+    let pDateLiteral = 
+        pipe3 pint32 (pchar '-' >>. pint32) (pchar '-' >>. pint32) 
+              (fun y m d -> DateLiteral (DateTime(y, m, d))) 
+        <?> "a date (yyyy-mm-dd)"
+
     let pLiteral = pNoneLiteral <|> pStringLiteral <|> pVersionLiteral <|> pDateLiteral
 
     let pCompOperator = 
@@ -62,23 +82,28 @@ module private Parser =
               pstring "||"                >>% Or ]
 
     let pExpression, pExpressionImpl = createParserForwardedToRef()
-    let pNegation = (pstring "!" <|> (pstringCI "not" .>> spaces1)) >>. pExpression |>> Negation
-    let pBasicExpression =
-        choice 
-            [ pNegation
-              (pLiteral |>> Literal)
-              (pIdentifier |>> Field)
-              between (pchar '(') (pchar ')') pExpression ]
-        |> ws
+    let pCompExpr, pCompExprImpl = createParserForwardedToRef()
+
+    let pBasicExpr =
+        ws <| choice 
+            [ (pstring "!" <|> (pstringCI "not" .>> spaces1)) >>. pExpression |>> Negation
+              between (pchar '(') (pchar ')') pExpression 
+              pLiteral |>> Literal
+              pIdentifier |>> Field ]
     
-    let pComparison = pipe3 pBasicExpression pCompOperator pExpression (fun ex1 op ex2 -> Comparison (ex1, op, ex2))
-    let pBooleanExpression = pipe3 (attempt pComparison <|> pBasicExpression) pBoolOperator pExpression (fun ex1 op ex2 -> BooleanExpression (ex1, op, ex2))
-    pExpressionImpl :=
-        "expression" |> choiceL 
-            [ attempt pComparison
-              attempt pBooleanExpression
-              pBasicExpression ]
-        |> ws
+    do pCompExprImpl := 
+        pBasicExpr .>>. opt (pCompOperator .>>. pCompExpr)
+        |>> fun (expr, op) ->
+            match op with
+            | Some (operator, other) -> Comparison (expr, operator, other)
+            | None -> expr
+
+    do pExpressionImpl :=
+        pCompExpr .>>. opt (pBoolOperator .>>. pExpression)
+        |>> fun (expr, op) ->
+            match op with
+            | Some (operator, other) -> BooleanExpression (expr, operator, other)
+            | None -> expr
 
     let pOperation =
         "operation" |> choiceL
