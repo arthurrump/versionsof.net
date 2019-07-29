@@ -4,6 +4,7 @@ open Expecto
 open FsCheck
 open System
 
+open NetCore.Versions
 open Query.Language
 
 type QueryGen() =
@@ -12,6 +13,22 @@ type QueryGen() =
         && str.StartsWith('.') |> not
         && str |> String.forall (fun c -> (c > 'a' && c < 'z') || (c > 'A' && c < 'Z') || c = '.')
     
+    static member DateTime() =
+        gen {
+            let! year = Gen.choose (1990, 2060)
+            let! month = Gen.choose (1, 12)
+            let! day = Gen.choose (1, DateTime.DaysInMonth (year, month))
+            return DateTime(year, month, day)
+        } |> Arb.fromGen
+
+    static member Version() =
+        gen {
+            let! ns = Gen.nonEmptyListOf Arb.generate
+            let! NonWhiteSpaceString pre = Arb.Default.NonWhiteSpaceString() |> Arb.toGen
+            let! pre = Gen.optionOf (Gen.constant pre)
+            return { Numbers = ns; Preview = pre }
+        } |> Arb.fromGen
+
     static member Expression() =
         let rec expr' = function
             | 0 -> Gen.oneof [
@@ -45,7 +62,7 @@ let testProp name = testPropertyWithConfig config name
 [<Tests>]
 let tests = 
     testList "Parser" [
-        testPropertyWithConfig config "Parse -> Pretty -> Parse" <| fun pipeline ->
+        testProp "Parse -> Pretty -> Parse" <| fun pipeline ->
             let pretty = PrettyPrint.prettyPipeline Cs pipeline
             match parse pretty with
             | FParsec.CharParsers.Success (result, _, _) ->
