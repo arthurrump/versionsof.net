@@ -194,10 +194,14 @@ module private Evaluation =
             else None
 
     let (|OList|_|) object =
-        let t = object.GetType()
-        if t.IsGenericType && t.GetGenericTypeDefinition() = typedefof<_ list>
-        then Some (unbox<obj list> object)
-        else None
+        if object = null then None
+        else 
+            let t = object.GetType()
+            if t.IsGenericType && t.GetGenericTypeDefinition() = typedefof<_ list>
+            then Some (unbox<obj list> object)
+            else None
+
+    let typeName obj = if obj <> null then obj.GetType().Name else "Option _"
 
     let rec evalComparison op left right =
         let ok = box >> Ok
@@ -220,7 +224,7 @@ module private Evaluation =
             | NotEqual -> list |> List.contains other |> not |> ok
             | _ -> errf "Comparison %A is not supported for lists" op
         | _ ->
-            errf "Comparison is not supported between types %s and %s" (left.GetType().Name) (right.GetType().Name)
+            errf "Comparison is not supported between types %s and %s" (typeName left) (typeName right)
 
     let evalLiteral = function
         | NoneLiteral -> box None
@@ -239,7 +243,7 @@ module private Evaluation =
         | Negation expr ->
             match evalExpression data expr with
             | Ok b when (b :? bool) -> Ok (box (not (unbox b)))
-            | Ok o -> errf "Value of type %s is not negatable" (o.GetType().Name)
+            | Ok o -> errf "Value of type %s is not negatable" (typeName o)
             | Error e -> Error e
         | Comparison (lexpr, op, rexpr) ->
             match evalExpression data lexpr, evalExpression data rexpr with
@@ -250,7 +254,7 @@ module private Evaluation =
             | Ok l, Ok r when (l :? bool) && (r :? bool) -> 
                 evalBoolOperator op (unbox l) (unbox r) |> box |> Ok
             | Ok l, Ok r ->
-                errf "Boolean operation requires two booleans, but got %s and %s" (l.GetType().Name) (r.GetType().Name)
+                errf "Boolean operation requires two booleans, but got %s and %s" (typeName l) (typeName r)
             | Error e, _  | _, Error e -> 
                 Error e
 
@@ -261,7 +265,7 @@ module private Evaluation =
             Seq.map (fun x -> 
                 match evalExpression x expr with
                 | Ok b when (b :? bool) -> Ok (unbox b)
-                | Ok o -> errf "Expression needs to be of type bool, but is of type %s" (o.GetType().Name)
+                | Ok o -> errf "Expression needs to be of type bool, but is of type %s" (typeName o)
                 | Error e -> Error e
                 |> Result.map (fun b -> b, x))
             >> Seq.toList
