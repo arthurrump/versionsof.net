@@ -51,17 +51,17 @@ module private Parser =
             (stringsSepBy normal escaped)
         |>> StringLiteral
 
-    let pVersionLiteral = 
-        sepBy1 pint32 (pchar '.') .>>. opt (pchar '-' >>. manySatisfy notSpaces)
-        |>> fun (ns, pre) -> VersionLiteral { Numbers = ns; Preview = pre }
-        <?> "a version"
-
     let pDateLiteral = 
         pipe3 pint32 (pchar '-' >>. pint32) (pchar '-' >>. pint32) 
               (fun y m d -> DateLiteral (DateTime(y, m, d))) 
         <?> "a date (yyyy-mm-dd)"
 
-    let pLiteral = pNoneLiteral <|> pStringLiteral <|> pVersionLiteral <|> pDateLiteral
+    let pVersionLiteral = 
+        sepBy1 pint32 (pchar '.') .>>. opt (pchar '-' >>. manySatisfy notSpaces)
+        |>> fun (ns, pre) -> VersionLiteral { Numbers = ns; Preview = pre }
+        <?> "a version"
+
+    let pLiteral = pNoneLiteral <|> pStringLiteral <|> attempt pDateLiteral <|> pVersionLiteral
 
     let pCompOperator = 
         "comparison operator" |> choiceL 
