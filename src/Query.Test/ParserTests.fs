@@ -26,7 +26,7 @@ type QueryGen() =
     static member Operation() =
         Gen.oneof [
             Arb.generate |> Gen.map Where
-            Gen.nonEmptyListOf Arb.generate |> Gen.map Select
+            Gen.nonEmptyListOf (Arb.generate |> Gen.where isIdentifier) |> Gen.map Select
         ] |> Arb.fromGen
 
     static member Pipeline() =
