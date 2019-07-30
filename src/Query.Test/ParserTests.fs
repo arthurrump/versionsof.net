@@ -72,8 +72,8 @@ let testProp name = testPropertyWithConfig config name
 [<Tests>]
 let tests = 
     testList "Parser" [
-        testProp "Parse -> Pretty -> Parse" <| fun pipeline ->
-            let pretty = PrettyPrint.prettyPipeline Cs pipeline
+        testProp "Parse -> Pretty -> Parse" <| fun (style, pipeline) ->
+            let pretty = PrettyPrint.prettyPipeline style pipeline
             match parse pretty with
             | FParsec.CharParsers.Success (result, _, _) ->
                 Expect.equal result pipeline "Parsed equals input"
