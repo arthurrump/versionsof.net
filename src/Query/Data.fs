@@ -6,6 +6,11 @@ open Thoth.Json.Net
 
 // Helpers
 //////////
+let private (|Int|_|) str =
+    match Int32.TryParse str with
+    | (true, i) -> Some i
+    | (false, _) -> None
+
 module private Decode =
     let version path value =
         match Decode.string path value with
@@ -14,6 +19,21 @@ module private Decode =
             | Some v -> Ok v
             | None -> (path, BadPrimitive("a version", value)) |> Error
         | Error v -> Error v
+
+    let date path value = 
+        match Decode.string path value with
+        | Ok s ->
+            match s.Split('-') with
+            | [| Int year; Int month; Int day |] -> 
+                try DateTime(year, month, day) |> Ok
+                with :? ArgumentOutOfRangeException -> (path, BadType("a date (yyyy-mm-dd)", value)) |> Error
+            | _ -> (path, BadPrimitive("a date (yyyy-mm-dd)", value)) |> Error
+        | Error v -> Error v
+
+module private Encode =
+    let date (d : DateTime) = 
+        let d = d.ToLocalTime()
+        sprintf "%i-%i-%i" d.Year d.Month d.Day |> Encode.string
 
 // .NET Core
 ////////////
@@ -32,7 +52,7 @@ module Core =
             Encode.object [
                 yield "version", Encode.string (string sdk.Version)
                 yield "release", Encode.string sdk.ReleaseLink
-                yield "date", Encode.datetime sdk.ReleaseDate
+                yield "date", Encode.date sdk.ReleaseDate
                 match sdk.RuntimeVersion with Some rt -> yield "runtime", Encode.string (string rt) | _ -> ()
                 match sdk.VsVersion with Some rt -> yield "vs", Encode.string (string rt) | _ -> ()
                 match sdk.CsharpVersion with Some rt -> yield "csharp", Encode.string (string rt) | _ -> ()
@@ -44,7 +64,7 @@ module Core =
             Decode.object (fun get ->
                 { Version = get.Required.Field "version" Decode.version
                   ReleaseLink = get.Required.Field "release" Decode.string
-                  ReleaseDate = get.Required.Field "date" Decode.datetime
+                  ReleaseDate = get.Required.Field "date" Decode.date
                   RuntimeVersion = get.Optional.Field "runtime" Decode.version
                   VsVersion = get.Optional.Field "vs" Decode.version
                   CsharpVersion = get.Optional.Field "csharp" Decode.version
@@ -71,7 +91,7 @@ module Core =
             Encode.object [
                 "version", Encode.string (string rt.Version)
                 "release", Encode.string rt.ReleaseLink
-                "date", Encode.datetime rt.ReleaseDate
+                "date", Encode.date rt.ReleaseDate
                 "vs", Encode.list (rt.VsVersion |> List.map (string >> Encode.string))
             ]
 
@@ -79,7 +99,7 @@ module Core =
             Decode.object (fun get ->
                 { Version = get.Required.Field "version" Decode.version
                   ReleaseLink = get.Required.Field "release" Decode.string
-                  ReleaseDate = get.Required.Field "date" Decode.datetime
+                  ReleaseDate = get.Required.Field "date" Decode.date
                   VsVersion = get.Required.Field "vs" (Decode.list Decode.version) })
 
         static member FieldMap rt =
@@ -99,7 +119,7 @@ module Core =
         static member Encoder rel =
             Encode.object [
                 yield "version", Encode.string (string rel.Version)
-                yield "date", Encode.datetime rel.ReleaseDate
+                yield "date", Encode.date rel.ReleaseDate
                 match rel.Runtime with Some rt -> yield "runtime", Encode.string (string rt) | _ -> ()
                 yield "sdks", Encode.list (rel.Sdks |> List.map (string >> Encode.string))
                 match rel.AspRuntime with Some asp -> yield "asp", Encode.string (string asp) | _ -> ()
@@ -109,7 +129,7 @@ module Core =
         static member Decoder =
             Decode.object (fun get ->
                 { Version = get.Required.Field "version" Decode.version
-                  ReleaseDate = get.Required.Field "date" Decode.datetime
+                  ReleaseDate = get.Required.Field "date" Decode.date
                   Runtime = get.Optional.Field "runtime" Decode.version
                   Sdks = get.Required.Field "sdks" (Decode.list Decode.version)
                   AspRuntime = get.Optional.Field "asp" Decode.version
@@ -168,7 +188,7 @@ module Framework =
         static member Encoder rel =
             Encode.object [
                 yield "version", Encode.string (string rel.Version)
-                yield "date", Encode.datetime rel.ReleaseDate
+                yield "date", Encode.date rel.ReleaseDate
                 yield "clr", Encode.string (string rel.ClrVersion)
                 match rel.IncludedInWindows with Some win -> yield "windows", Encode.string win | _ -> ()
                 match rel.IncludedInServer with Some ser -> yield "server", Encode.string ser | _ -> ()
@@ -179,7 +199,7 @@ module Framework =
         static member Decoder =
             Decode.object (fun get ->
                 { Version = get.Required.Field "version" Decode.version
-                  ReleaseDate = get.Required.Field "date" Decode.datetime
+                  ReleaseDate = get.Required.Field "date" Decode.date
                   ClrVersion = get.Required.Field "clr" Decode.version
                   IncludedInWindows = get.Optional.Field "windows" Decode.string
                   IncludedInServer = get.Optional.Field "server" Decode.string
@@ -207,14 +227,14 @@ module Mono =
         static member Encoder rel = 
             Encode.object [
                 yield "version", Encode.string (string rel.Version)
-                match rel.ReleaseDate with Some d -> yield "date", Encode.datetime d | _ -> ()
+                match rel.ReleaseDate with Some d -> yield "date", Encode.date d | _ -> ()
                 if rel.Skipped then yield "skipped", Encode.bool rel.Skipped
             ]
 
         static member Decoder =
             Decode.object (fun get ->
                 { Version = get.Required.Field "version" Decode.version
-                  ReleaseDate = get.Optional.Field "date" Decode.datetime
+                  ReleaseDate = get.Optional.Field "date" Decode.date
                   Skipped = get.Optional.Field "skipped" Decode.bool |> Option.defaultValue false })
 
         static member FieldMap rel =
