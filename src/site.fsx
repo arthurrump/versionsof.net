@@ -28,7 +28,8 @@ open Helpers
 #load "core.fsx"
 #load "framework.fsx"
 #load "mono.fsx"
-#load "query.fsx"
+#load "query.page.fsx"
+#load "query.files.fsx"
 
 // Site structure and page creation
 ///////////////////////////////////
@@ -37,6 +38,7 @@ type Page =
     | CorePage of Core.Page
     | FrameworkPage of Framework.Page
     | MonoPage of Mono.Page
+    | QueryPage
     | ErrorPage of code: string * text: string
 
 let getHomePage channels frameworkReleases monoReleases =
@@ -67,6 +69,7 @@ let getBreadcrumbs =
     | CorePage p -> home :: Core.getBreadcrumbs p
     | FrameworkPage p -> home :: Framework.getBreadcrumbs p
     | MonoPage p -> home :: Mono.getBreadcrumbs p
+    | QueryPage -> home :: []
     | ErrorPage _ -> []
 
 // Template
@@ -80,6 +83,7 @@ let template (site : StaticSite<Config, Page>) page =
         | CorePage p -> Core.titleText p
         | FrameworkPage p -> Framework.titleText p
         | MonoPage p -> Mono.titleText p
+        | QueryPage -> Query.Page.titleText
         | ErrorPage (code, text) -> sprintf "%s: %s - " code text
 
     let keywords =
@@ -89,6 +93,7 @@ let template (site : StaticSite<Config, Page>) page =
         | CorePage p -> Core.keywords p
         | FrameworkPage p -> Framework.keywords p
         | MonoPage p -> Mono.keywords p
+        | QueryPage -> Query.Page.keywords
 
     let description =
         match page.Content with
@@ -96,6 +101,7 @@ let template (site : StaticSite<Config, Page>) page =
         | CorePage p -> Core.description p
         | FrameworkPage p -> Framework.description p
         | MonoPage p -> Mono.description p
+        | QueryPage -> Query.Page.description
     
     let navItem name url =
         span [ _class "nav-item" ] [ a [ _href url ] [ str name ] ]
@@ -117,6 +123,7 @@ let template (site : StaticSite<Config, Page>) page =
         | CorePage p -> Core.content p
         | FrameworkPage p -> Framework.content p
         | MonoPage p -> Mono.content p
+        | QueryPage -> Query.Page.content
         | ErrorPage (code, text) ->
             div [ _id "error-page" ] [
                 span [ _class "status-code" ] [ str code ]
@@ -199,6 +206,7 @@ let template (site : StaticSite<Config, Page>) page =
                         navItem ".NET Core" "/core/"
                         navItem ".NET Framework" "/framework/"
                         navItem "Mono" "/mono/"
+                        navItem "Query" "/query/"
                     ]
                 ]
             ]
@@ -226,6 +234,7 @@ let createStaticSite config pages files =
     |> StaticSite.withFilesFromSources (!! "ionicons/*") (fun p -> "/icons/" + Path.GetFileName p)
     |> StaticSite.withPages pages
     |> StaticSite.withFiles files
+    |> StaticSite.withPage QueryPage "/query/"
     |> StaticSite.withPage (ErrorPage ("404", "Not Found")) "/404.html"
 
 let generateSite config =
