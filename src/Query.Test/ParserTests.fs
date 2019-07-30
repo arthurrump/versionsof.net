@@ -40,15 +40,24 @@ type QueryGen() =
             s <> null && s |> String.forall (fun c -> c <> '\n' && c <> '\r' && c <> '\t' && c <> '\v'))
 
     static member Expression() =
-        let rec expr' = function
-            | 0 -> Gen.oneof [
-                    Arb.generate |> Gen.where isIdentifier |> Gen.map Field
-                    Arb.generate |> Gen.map Literal ]
-            | x -> Gen.oneof [
-                    Gen.zip3 (expr' (x/2)) Arb.generate (expr' (x/2)) |> Gen.map Comparison
-                    Gen.zip3 (expr' (x/2)) Arb.generate (expr' (x/2)) |> Gen.map BooleanExpression
-                    expr' (x/2) |> Gen.map Negation ] 
-        Gen.sized expr' |> Arb.fromGen
+        { new Arbitrary<Expression>() with 
+            override __.Generator = 
+                let rec gen' = function
+                | 0 -> Gen.oneof [
+                        Arb.generate |> Gen.where isIdentifier |> Gen.map Field
+                        Arb.generate |> Gen.map Literal ]
+                | x -> Gen.oneof [
+                        Gen.zip3 (gen' (x/2)) Arb.generate (gen' (x/2)) |> Gen.map Comparison
+                        Gen.zip3 (gen' (x/2)) Arb.generate (gen' (x/2)) |> Gen.map BooleanExpression
+                        gen' (x/2) |> Gen.map Negation ]
+                Gen.sized gen'
+            override __.Shrinker expr = 
+                match expr with
+                | Field name -> Arb.shrink name |> Seq.map Field
+                | Literal lit -> Arb.shrink lit |> Seq.map Literal
+                | Comparison (e1, _, e2) -> seq [ e1; e2 ]
+                | BooleanExpression (e1, _, e2) -> seq [ e1; e2 ]
+                | Negation e -> seq [ e ] }
 
     static member Operation() =
         Gen.oneof [
@@ -57,17 +66,23 @@ type QueryGen() =
         ] |> Arb.fromGen
 
     static member Pipeline() =
-        gen { 
-            let! ds = Arb.generate |> Gen.where isIdentifier
-            let! ops = Arb.generate
-            return { DataSource = ds; Operations = ops }
-        } |> Arb.fromGen
+        { new Arbitrary<Pipeline>() with
+            override __.Generator =
+                gen { 
+                    let! ds = Arb.generate |> Gen.where isIdentifier
+                    let! ops = Arb.generate
+                    return { DataSource = ds; Operations = ops }
+                }
+            override __.Shrinker p =
+                Arb.shrink p.Operations
+                |> Seq.map (fun ops -> { DataSource = p.DataSource; Operations = ops }) }
 
 let config = 
     { FsCheckConfig.defaultConfig with 
         arbitrary = [ typeof<QueryGen> ] }
 
 let testProp name = testPropertyWithConfig config name
+let etestProp gen name = etestPropertyWithConfig gen config name
 
 [<Tests>]
 let tests = 
