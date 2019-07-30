@@ -2,22 +2,38 @@
 <html>
   <head>
     <meta charset="UTF-8">
-    <title>Bolero Application</title>
+    <title>Query - Versions of .NET</title>
     <base href="/">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.7.4/css/bulma.min.css">
-    <link rel="stylesheet" href="css/index.css">
+    <style>
+      body { margin: 0; padding: 0; }
+      #query-main {
+        font-family: Consolas, monospace;
+        font-size: 1.2rem;
+        width: 80vw;
+        height: 80vh;
+        margin: 10vh 10vw;
+        border: 1px #eee solid;
+        border-radius: 4px;
+        padding: 12px;
+        box-sizing: border-box;
+      }
+      .loading {
+        font-size: 2em;
+        text-align: center;
+      }
+      #query-main textarea {
+        font-family: Consolas;
+        height: 10em;
+        width: 60%;
+      }
+      #query-main pre.error {
+        background-color: #fdd;
+        padding: 12px;
+      }
+    </style>
   </head>
   <body>
-    <nav class="navbar is-dark" role="navigation" aria-label="main navigation">
-      <div class="navbar-brand">
-        <a class="navbar-item has-text-weight-bold is-size-5" href="https://fsbolero.io">
-          <img style="height:40px" src="https://github.com/fsbolero/website/raw/master/src/Website/img/wasm-fsharp.png" />
-          &nbsp;
-          Bolero
-        </a>
-      </div>
-    </nav>
-    <div id="main">Loading...</div>
+    <div id="query-main"><p class="loading">Loading...</p></div>
     <script src="_framework/blazor.webassembly.js"></script>
   </body>
 </html>

@@ -3,18 +3,15 @@ module Query.Startup
 open Microsoft.AspNetCore.Blazor.Hosting
 open Microsoft.AspNetCore.Components.Builder
 open Microsoft.Extensions.DependencyInjection
-open Bolero.Remoting.Client
 
 type Startup() =
-
-    member __.ConfigureServices(services: IServiceCollection) =
-        services.AddRemoting()
-
+    member __.ConfigureServices(services: IServiceCollection) = 
+        services
     member __.Configure(app: IComponentsApplicationBuilder) =
-        app.AddComponent<App.App>("#main")
+        app.AddComponent<App.App>("#query-main")
 
 [<EntryPoint>]
-let main args =
+let main _ =
     BlazorWebAssemblyHost.CreateDefaultBuilder()
         .UseBlazorStartup<Startup>()
         .Build()

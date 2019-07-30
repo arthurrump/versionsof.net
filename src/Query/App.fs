@@ -23,12 +23,11 @@ let update message model =
 let view model dispatch = 
     div [] [
         yield textarea 
-            [ on.change (fun args -> dispatch (UpdateQuery (unbox args.Value)))
-              attr.style "font-family: Consolas;" ] 
+            [ on.change (fun args -> dispatch (UpdateQuery (unbox args.Value))) ] 
             [ text model.Query ]
         match model.Eval with
         | Ok rows when rows |> Seq.isEmpty |> not ->
-            yield table [ attr.style "font-family: Consolas;" ] [
+            yield table [] [
                 thead [] [ tr [] [
                     for kv in rows |> Seq.head ->
                         th [] [ text kv.Key ]
@@ -43,7 +42,7 @@ let view model dispatch =
         | Ok _ -> yield p [] [ text "No results" ]
         | Error mes ->
             yield pre 
-                [ attr.style "font-family: Consolas; background-color: #fdd;" ] 
+                [ attr.classes [ "error" ] ] 
                 [ textf "Error:\n%s" mes ]
         match parse model.Query with
         | FParsec.CharParsers.Success (p, _, _) -> yield pre [] [ text (PrettyPrint.prettyPipeline Fs p) ]
