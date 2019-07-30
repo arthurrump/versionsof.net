@@ -32,10 +32,9 @@ type CodeStyle = Cs | Fs | Vb
 module private Parser =
     open FParsec
 
-    let notSpaces = isNoneOf [ ' '; '\t'; '\r'; '\n' ]
     let ws p = spaces >>. p .>> spaces
 
-    let pIdentifier =  many1Satisfy2L isAsciiLetter (fun c -> isAsciiLetter c || c = '.') "identifier"
+    let pIdentifier =  many1Satisfy2L isAsciiLetter (fun c -> isAsciiLetter c || c = '.') "an identifier"
 
     let pNoneLiteral = 
         "'none'" |> choiceL 
@@ -57,7 +56,8 @@ module private Parser =
         <?> "a date (yyyy-mm-dd)"
 
     let pVersionLiteral = 
-        sepBy1 pint32 (pchar '.') .>>. opt (pchar '-' >>. manySatisfy notSpaces)
+        sepBy1 pint32 (pchar '.') 
+        .>>. opt (pchar '-' >>. many1Satisfy (fun c -> isAsciiLetter c || isDigit c || c = '-' || c = '_' || c = '.'))
         |>> fun (ns, pre) -> VersionLiteral { Numbers = ns; Preview = pre }
         <?> "a version"
 
