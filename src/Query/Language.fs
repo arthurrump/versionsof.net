@@ -84,9 +84,14 @@ module private Parser =
     let pExpression, pExpressionImpl = createParserForwardedToRef()
     let pCompExpr, pCompExprImpl = createParserForwardedToRef()
 
+    let pNegation =
+        (pstring "!" <|> attempt (pstringCI "not" .>> followedBy (satisfy (not << isLetter)))) 
+        >>. pExpression 
+        |>> Negation
+
     let pBasicExpr =
         ws <| choice 
-            [ (pstring "!" <|> (pstringCI "not" .>> spaces1)) >>. pExpression |>> Negation
+            [ pNegation
               between (pchar '(') (pchar ')') pExpression 
               pLiteral |>> Literal
               pIdentifier |>> Field ]
