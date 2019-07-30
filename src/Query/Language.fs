@@ -2,6 +2,10 @@ module Query.Language
 
 open System
 open NetCore.Versions
+open FsToolkit.ErrorHandling.AsyncResultCEExtensions
+open System.Net.Http
+open System.Collections.Generic
+open Thoth.Json.Net
 
 type Pipeline = 
     { DataSource : string
@@ -164,7 +168,7 @@ module PrettyPrint =
         pipeline.DataSource + "\n" 
         + (pipeline.Operations |> List.map (prettyOperation style) |> String.concat "\n")
 
-module private Evaluation =
+module Evaluation =
     open Query.Data
 
     module Result =
@@ -175,7 +179,26 @@ module private Evaluation =
             | Error x :: _ -> Error x
 
     let errf fmt = Printf.ksprintf Error fmt
-    let sources = [ "core.releases"; "core.runtimes"; "core.sdks"; "framework.releases"; "mono.releases" ]
+    
+    let dataUrl (dataSource : string) = 
+        sprintf "/query/%s.json" (dataSource.Split('.') |> String.concat "/")
+
+    type DataCache(http : HttpClient) =
+        let cache = new Dictionary<string, string>()
+        member __.Get dataSource =
+            asyncResult {
+                match cache.TryGetValue dataSource with
+                | (true, res) -> 
+                    return res
+                | (false, _) ->
+                    let! res = dataUrl dataSource |> http.GetAsync |> Async.AwaitTask
+                    if res.IsSuccessStatusCode then
+                        let! body = res.Content.ReadAsStringAsync() |> Async.AwaitTask
+                        cache.Add (dataSource, body)
+                        return body
+                    else
+                        return! errf "Request for %s failed with status code %A" dataSource res.StatusCode
+            }
 
     let evalCompOperator = function
         | Equal -> (=)
@@ -199,12 +222,15 @@ module private Evaluation =
             else None
 
     let (|OList|_|) object =
-        if object = null then None
+        if object = null then 
+            None
         else 
             let t = object.GetType()
             if t.IsGenericType && t.GetGenericTypeDefinition() = typedefof<_ list>
             then Some (unbox<obj list> object)
             else None
+
+    let (|Lower|) (text : string) = text.ToLower()
 
     let typeName obj = if obj <> null then obj.GetType().Name else "Option _"
 
@@ -252,7 +278,7 @@ module private Evaluation =
             | Error e -> Error e
         | Comparison (lexpr, op, rexpr) ->
             match evalExpression data lexpr, evalExpression data rexpr with
-            | Ok l, Ok r -> evalComparison op l r
+            | Ok l, Ok r -> evalComparison op l r 
             | Error e, _ | _, Error e -> Error e
         | BooleanExpression (lexpr, op, rexpr) ->
             match evalExpression data lexpr, evalExpression data rexpr with
@@ -282,22 +308,28 @@ module private Evaluation =
     let evalOperations =
         List.fold (fun comp op -> comp >> Result.bind (evalOperation op)) Ok
 
-    let evalPipeline pipeline =
+    let evalPipeline (dataCache : DataCache) pipeline =
+        let eval' fieldmap = List.map fieldmap >> evalOperations pipeline.Operations
+        let eval decoder fieldmap =
+            asyncResult {
+                let! json = dataCache.Get pipeline.DataSource
+                let! data = Decode.fromString (Decode.list decoder) json
+                return! data |> eval' fieldmap
+            }
+
         match pipeline.DataSource with
-        | "core.releases" -> 
-            let data = Core.releases |> List.map Core.Release.FieldMap
-            evalOperations pipeline.Operations data
-        // | "core.runtimes" -> Ok ()
-        // | "core.sdks" -> Ok ()
-        // | "framework.releases" -> Ok ()
-        // | "mono.releases" -> Ok ()
-        | invalid -> errf "Invalid data source '%s'" invalid
+        | "core.releases" -> eval Core.Release.Decoder Core.Release.FieldMap
+        | "core.runtimes" -> eval Core.Runtime.Decoder Core.Runtime.FieldMap
+        | "core.sdks" -> eval Core.Sdk.Decoder Core.Sdk.FieldMap
+        | "framework.releases" -> eval Framework.Release.Decoder Framework.Release.FieldMap
+        | "mono.releases" -> eval Mono.Release.Decoder Mono.Release.FieldMap
+        | invalid -> async { return errf "Invalid data source '%s'" invalid }
 
-let evaluate = Evaluation.evalPipeline
+let evaluate dc = Evaluation.evalPipeline dc
 
-let evaluateQuery query = 
+let evaluateQuery dc query = 
     match parse query with
     | FParsec.CharParsers.Success (pipeline, _, _) ->
-        evaluate pipeline
+        evaluate dc pipeline
     | FParsec.CharParsers.Failure (mes, _, _) ->
-        Error mes
+        async { return Error mes }
