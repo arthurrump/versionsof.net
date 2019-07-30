@@ -117,7 +117,7 @@ let parse = FParsec.CharParsers.run Parser.pPipeline
 module PrettyPrint =
     let prettyLiteral style = function
         | NoneLiteral -> match style with Cs -> "null" | Fs -> "None" | Vb -> "Nothing"
-        | StringLiteral s -> "\"" + s + "\""
+        | StringLiteral s -> "\"" + s.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\""
         | VersionLiteral v -> string v
         | DateLiteral d -> d.ToString "yyyy-MM-dd"
 

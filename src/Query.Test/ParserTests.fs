@@ -34,6 +34,11 @@ type QueryGen() =
             return { Numbers = ns; Preview = pre }
         } |> Arb.fromGen
 
+    static member String() =
+        Arb.Default.String() 
+        |> Arb.filter (fun s ->
+            s <> null && s |> String.forall (fun c -> c <> '\n' && c <> '\r' && c <> '\t' && c <> '\v'))
+
     static member Expression() =
         let rec expr' = function
             | 0 -> Gen.oneof [
