@@ -11,7 +11,13 @@ type QueryGen() =
     static let isIdentifier str = 
         str |> String.IsNullOrEmpty |> not
         && str.StartsWith('.') |> not
-        && str |> String.forall (fun c -> (c > 'a' && c < 'z') || (c > 'A' && c < 'Z') || c = '.')
+        && str |> String.forall (fun c -> (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c = '.')
+
+    static let isVersionPreview str =
+        str |> String.IsNullOrEmpty |> not
+        && str |> String.forall (fun c -> (c >= 'a' && c <= 'z') 
+                                          || (c >= 'A' && c <= 'Z') 
+                                          || c = '.' || c = '_' || c = '-')
     
     static member DateTime() =
         gen {
@@ -24,8 +30,7 @@ type QueryGen() =
     static member Version() =
         gen {
             let! ns = Gen.nonEmptyListOf Arb.generate
-            let! NonWhiteSpaceString pre = Arb.Default.NonWhiteSpaceString() |> Arb.toGen
-            let! pre = Gen.optionOf (Gen.constant pre)
+            let! pre = Arb.generate |> Gen.where isVersionPreview |> Gen.optionOf
             return { Numbers = ns; Preview = pre }
         } |> Arb.fromGen
 
