@@ -33,6 +33,8 @@ and Literal =
 
 type CodeStyle = Cs | Fs | Vb
 
+type FieldMap = Map<string, int * obj>
+
 module private Parser =
     open FParsec
 
@@ -230,8 +232,6 @@ module Evaluation =
             then Some (unbox<obj list> object)
             else None
 
-    let (|Lower|) (text : string) = text.ToLower()
-
     let typeName obj = if obj <> null then obj.GetType().Name else "Option _"
 
     let rec evalComparison op left right =
@@ -266,7 +266,7 @@ module Evaluation =
     let rec evalExpression data = function
         | Field name -> 
             match data |> Map.tryFind name with
-            | Some x -> Ok x
+            | Some (_, x) -> Ok x
             | None -> errf "The field '%s' does not exist. Available fields: %s" 
                        name (data |> Map.toList |> List.map fst |> String.concat ", ")
         | Literal lit -> 
@@ -291,7 +291,16 @@ module Evaluation =
 
     let evalOperation = function
         | Select fields -> 
-            Seq.map (Map.filter (fun key _ -> fields |> List.contains key)) >> Ok
+            Seq.map (fun fieldMap ->
+                [ for f in fields -> 
+                    match fieldMap |> Map.tryFind f with
+                    | Some (_, x) -> Ok (f, x)
+                    | None -> errf "The field '%s' does not exist. Available fields: %s" 
+                                f (fieldMap |> Map.toList |> List.map fst |> String.concat ", ")
+                ] |> Result.allOk)
+            >> Seq.toList
+            >> Result.allOk
+            >> Result.map (Seq.map fieldMap)
         | Where expr -> 
             Seq.map (fun x -> 
                 match evalExpression x expr with

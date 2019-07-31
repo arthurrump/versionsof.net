@@ -12,11 +12,11 @@ type Loadable<'t> = Loading | Loaded of 't
 type Model =
     { Cache : Evaluation.DataCache
       Query : string
-      Eval : Loadable<Result<seq<Map<string, obj>>, string>> }
+      Eval : Loadable<Result<seq<FieldMap>, string>> }
 
 type Message = 
     | UpdateQuery of string
-    | LoadedResult of Result<seq<Map<string, obj>>, string>
+    | LoadedResult of Result<seq<FieldMap>, string>
 
 let evalCmd dc query = Cmd.ofAsync (evaluateQuery dc) query LoadedResult (fun ex -> LoadedResult (Error ex.Message))
 
@@ -36,15 +36,16 @@ let view model dispatch =
         | Loading -> 
             yield p [] [ text "Loading result" ]
         | Loaded (Ok rows) when rows |> Seq.isEmpty |> not ->
+            let rows = rows |> Seq.map (Map.toSeq >> Seq.sortBy (fun (_, (i, _)) -> i))
             yield table [] [
                 thead [] [ tr [] [
-                    for kv in rows |> Seq.head ->
-                        th [] [ text kv.Key ]
+                    for field, _ in rows |> Seq.head ->
+                        th [] [ text field ]
                 ] ]
                 tbody [] [
                     for row in rows -> tr [] [
-                        for kv in row ->
-                            td [] [ textf "%A" kv.Value ]
+                        for _, (_, value) in row ->
+                            td [] [ textf "%A" value ]
                     ]
                 ]
             ]
