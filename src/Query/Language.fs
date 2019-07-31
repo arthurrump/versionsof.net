@@ -116,6 +116,7 @@ module private Parser =
               between (pchar '(') (pchar ')') pExpression 
               pLiteral |>> Literal
               pIdentifier |>> Field ]
+        |> srcMap Token.Expression
     
     do pCompExprImpl := 
         pBasicExpr .>>. opt (pCompOperator .>>. pCompExpr)
@@ -123,6 +124,7 @@ module private Parser =
             match op with
             | Some (operator, other) -> Comparison (expr, operator, other)
             | None -> expr
+        |> srcMap Token.Expression
 
     do pExpressionImpl :=
         pCompExpr .>>. opt (pBoolOperator .>>. pExpression)
