@@ -34,6 +34,8 @@ and Literal =
 
 [<RequireQualifiedAccess>]
 type Token =
+    | None
+    | AtPosition of FParsec.Position
     | DataSource
     | Operation of Operation
     | Expression of Expression
@@ -209,7 +211,7 @@ module Evaluation =
             | Ok x :: rest -> Result.map (fun r -> x::r) (allOk rest)
             | Error x :: _ -> Error x
 
-    let errf fmt = Printf.ksprintf Error fmt
+    let errf tkn fmt = Printf.ksprintf (fun mes -> Error (tkn, mes)) fmt
     
     let dataUrl (dataSource : string) = 
         sprintf "/query/%s.json" (dataSource.Split('.') |> String.concat "/")
@@ -228,7 +230,7 @@ module Evaluation =
                         cache.Add (dataSource, body)
                         return body
                     else
-                        return! errf "Request for %s failed with status code %A" dataSource res.StatusCode
+                        return! errf Token.None "Request for %s failed with status code %A" dataSource res.StatusCode
             }
 
     let evalCompOperator = function
@@ -263,7 +265,7 @@ module Evaluation =
 
     let typeName obj = if obj <> null then obj.GetType().Name else "Option _"
 
-    let rec evalComparison op left right =
+    let rec evalComparison expr op left right =
         let ok = box >> Ok
         match left, right with
         | l, r when l <> null && r <> null && l.GetType() = r.GetType() -> 
@@ -272,19 +274,19 @@ module Evaluation =
             ok (op = Equal || op = LessEqual || op = GreaterEqual)
         | OOption l, r -> 
             match l with
-            | Some l -> evalComparison op l r
+            | Some l -> evalComparison expr op l r
             | None -> ok (op = NotEqual)
         | l, OOption r -> 
             match r with
-            | Some r -> evalComparison op l r
+            | Some r -> evalComparison expr op l r
             | None -> ok (op = NotEqual)
         | OList list, other | other, OList list when list.GetType().GetGenericArguments().[0] = other.GetType() ->
             match op with
             | Equal -> list |> List.contains other |> ok
             | NotEqual -> list |> List.contains other |> not |> ok
-            | _ -> errf "Comparison %A is not supported for lists" op
+            | _ -> errf (Token.Expression expr) "Comparison %A is not supported for lists" op
         | _ ->
-            errf "Comparison is not supported between types %s and %s" (typeName left) (typeName right)
+            errf (Token.Expression expr) "Comparison is not supported between types %s and %s" (typeName left) (typeName right)
 
     let evalLiteral = function
         | NoneLiteral -> box None
@@ -293,48 +295,48 @@ module Evaluation =
         | DateLiteral d -> box d
 
     let rec evalExpression data = function
-        | Field name -> 
+        | Field name as expr -> 
             match data |> Map.tryFind name with
             | Some (_, x) -> Ok x
-            | None -> errf "The field '%s' does not exist. Available fields: %s" 
+            | None -> errf (Token.Expression expr) "The field '%s' does not exist. Available fields: %s" 
                        name (data |> Map.toList |> List.map fst |> String.concat ", ")
         | Literal lit -> 
             evalLiteral lit |> Ok
-        | Negation expr ->
+        | Negation expr as neg ->
             match evalExpression data expr with
             | Ok b when (b :? bool) -> Ok (box (not (unbox b)))
-            | Ok o -> errf "Value of type %s is not negatable" (typeName o)
+            | Ok o -> errf (Token.Expression neg) "Value of type %s is not negatable" (typeName o)
             | Error e -> Error e
-        | Comparison (lexpr, op, rexpr) ->
+        | Comparison (lexpr, op, rexpr) as expr ->
             match evalExpression data lexpr, evalExpression data rexpr with
-            | Ok l, Ok r -> evalComparison op l r 
+            | Ok l, Ok r -> evalComparison expr op l r 
             | Error e, _ | _, Error e -> Error e
-        | BooleanExpression (lexpr, op, rexpr) ->
+        | BooleanExpression (lexpr, op, rexpr) as expr ->
             match evalExpression data lexpr, evalExpression data rexpr with
             | Ok l, Ok r when (l :? bool) && (r :? bool) -> 
                 evalBoolOperator op (unbox l) (unbox r) |> box |> Ok
             | Ok l, Ok r ->
-                errf "Boolean operation requires two booleans, but got %s and %s" (typeName l) (typeName r)
+                errf (Token.Expression expr) "Boolean operation requires two booleans, but got %s and %s" (typeName l) (typeName r)
             | Error e, _  | _, Error e -> 
                 Error e
 
     let evalOperation = function
-        | Select fields -> 
+        | Select fields as op -> 
             Seq.map (fun fieldMap ->
                 [ for f in fields -> 
                     match fieldMap |> Map.tryFind f with
                     | Some (_, x) -> Ok (f, x)
-                    | None -> errf "The field '%s' does not exist. Available fields: %s" 
+                    | None -> errf (Token.Operation op) "The field '%s' does not exist. Available fields: %s" 
                                 f (fieldMap |> Map.toList |> List.map fst |> String.concat ", ")
                 ] |> Result.allOk)
             >> Seq.toList
             >> Result.allOk
             >> Result.map (Seq.map fieldMap)
-        | Where expr -> 
+        | Where expr as op -> 
             Seq.map (fun x -> 
                 match evalExpression x expr with
                 | Ok b when (b :? bool) -> Ok (unbox b)
-                | Ok o -> errf "Expression needs to be of type bool, but is of type %s" (typeName o)
+                | Ok o -> errf (Token.Operation op) "Expression needs to be of type bool, but is of type %s" (typeName o)
                 | Error e -> Error e
                 |> Result.map (fun b -> b, x))
             >> Seq.toList
@@ -356,7 +358,7 @@ module Evaluation =
         let eval decoder fieldmap =
             asyncResult {
                 let! json = dataCache.Get pipeline.DataSource
-                let! data = Decode.fromString (Decode.list decoder) json
+                let! data = Decode.fromString (Decode.list decoder) json |> Result.mapError (fun mes -> Token.None, mes)
                 return! data |> eval' fieldmap
             }
 
@@ -366,7 +368,7 @@ module Evaluation =
         | "core.sdks" -> eval Core.Sdk.Decoder Core.Sdk.FieldMap
         | "framework.releases" -> eval Framework.Release.Decoder Framework.Release.FieldMap
         | "mono.releases" -> eval Mono.Release.Decoder Mono.Release.FieldMap
-        | invalid -> async { return errf "Invalid data source '%s'" invalid }
+        | invalid -> async { return errf Token.DataSource "Invalid data source '%s'" invalid }
 
 let evaluate dc = Evaluation.evalPipeline dc
 
@@ -374,5 +376,5 @@ let evaluateQuery dc query =
     match parse query with
     | FParsec.CharParsers.Success (pipeline, srcMap, _) ->
         async { let! res = evaluate dc pipeline in return res, srcMap }
-    | FParsec.CharParsers.Failure (mes, _, _) ->
-        async { return Error mes, Map.empty }
+    | FParsec.CharParsers.Failure (mes, err, srcMap) ->
+        async { return Error (Token.AtPosition err.Position, mes), srcMap }

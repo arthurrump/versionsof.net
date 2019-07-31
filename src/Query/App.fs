@@ -12,13 +12,13 @@ type Loadable<'t> = Loading | Loaded of 't
 type Model =
     { Cache : Evaluation.DataCache
       Query : string
-      Eval : Loadable<Result<seq<FieldMap>, string> * SourceMap> }
+      Eval : Loadable<Result<seq<FieldMap>, Token * string> * SourceMap> }
 
 type Message = 
     | UpdateQuery of string
-    | LoadedResult of Result<seq<FieldMap>, string> * SourceMap
+    | LoadedResult of Result<seq<FieldMap>, Token * string> * SourceMap
 
-let evalCmd dc query = Cmd.ofAsync (evaluateQuery dc) query LoadedResult (fun ex -> LoadedResult (Error ex.Message, Map.empty))
+let evalCmd dc query = Cmd.ofAsync (evaluateQuery dc) query LoadedResult (fun ex -> LoadedResult (Error (Token.None, ex.Message), Map.empty))
 
 let init dc = { Cache = dc; Query = ""; Eval = Loading }, evalCmd dc ""
 
@@ -51,7 +51,7 @@ let view model dispatch =
             ]
         | Loaded (Ok _, _) -> 
             yield p [] [ text "No results" ]
-        | Loaded (Error mes, srcMap) ->
+        | Loaded (Error (token, mes), srcMap) ->
             yield pre 
                 [ attr.classes [ "error" ] ] 
                 [ textf "Error:\n%s" mes ]
