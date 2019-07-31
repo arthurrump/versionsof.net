@@ -249,7 +249,7 @@ module Evaluation =
             match r with
             | Some r -> evalComparison op l r
             | None -> ok (op = NotEqual)
-        | OList list, other | other, OList list ->
+        | OList list, other | other, OList list when list.GetType().GetGenericArguments().[0] = other.GetType() ->
             match op with
             | Equal -> list |> List.contains other |> ok
             | NotEqual -> list |> List.contains other |> not |> ok
