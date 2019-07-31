@@ -14,7 +14,7 @@ type Pipeline =
 and Operation =
     | Where of Expression
     | Select of fields : string list
-    | SortBy of Expression
+    | SortBy of descending: bool * Expression
 
 and Expression =
     | Comparison of Expression * CompOperator * Expression
@@ -117,11 +117,17 @@ module private Parser =
             | Some (operator, other) -> BooleanExpression (expr, operator, other)
             | None -> expr
 
+    let pSortBy =
+        (pstringCI "sortby" <|> pstringCI "orderby") 
+        >>. (opt (pstringCI "descending") |>> Option.isSome) 
+        .>>. pExpression 
+        |>> SortBy
+
     let pOperation =
         "operation" |> choiceL
             [ pstringCI "where" >>. pExpression |>> Where
               pstringCI "select" >>. sepBy1 (ws pIdentifier) (pchar ',') |>> Select
-              (pstringCI "sortby" <|> pstringCI "orderby") >>. pExpression |>> SortBy ]
+              pSortBy ]
 
     let pPipeline = pipe2 (ws pIdentifier) (many (ws (pchar '|') >>. pOperation) .>> eof) (fun id ops -> { DataSource = id; Operations = ops })
 
@@ -167,8 +173,9 @@ module PrettyPrint =
         | Where expr ->
             "| " + (match style with Cs | Vb -> "Where" | Fs -> "where") + " "
             + (prettyExpression style expr)
-        | SortBy expr ->
-            "| " + (match style with Cs | Vb -> "OrderBy" | Fs -> "sortBy") + " "
+        | SortBy (desc, expr) ->
+            "| " + (match style with Cs | Vb -> "OrderBy" | Fs -> "sortBy") 
+            + (if desc then "Descending " else " ")
             + (prettyExpression style expr)
 
     let prettyPipeline style pipeline =
@@ -317,11 +324,12 @@ module Evaluation =
             >> Result.allOk
             >> Result.map (Seq.filter fst)
             >> Result.map (Seq.map snd)
-        | SortBy expr ->
+        | SortBy (desc, expr) ->
+            let sortBy = if desc then Seq.sortByDescending else Seq.sortBy
             Seq.map (fun fm -> evalExpression fm expr |> Result.map (fun ex -> (ex, fm)))
             >> Seq.toList
             >> Result.allOk
-            >> Result.map (Seq.sortBy (fst >> unbox) >> Seq.map snd)
+            >> Result.map (sortBy (fst >> unbox) >> Seq.map snd)
         
     let evalOperations =
         List.fold (fun comp op -> comp >> Result.bind (evalOperation op)) Ok
