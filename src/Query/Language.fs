@@ -51,6 +51,7 @@ module private Parser =
     open FParsec
 
     let ws p = spaces >>. p .>> spaces
+    let keyword str = attempt (pstringCI str .>> followedBy (satisfy (not << isLetter))) <?> "'" + str + "'"
     let srcMap tkn p : Parser<'a, SourceMap> = 
         pipe3 getPosition p getPosition (fun prePos res postPos -> res, (prePos, postPos))
         >>= fun (res, pos) -> updateUserState (Map.add (tkn res) pos) >>% res
@@ -59,9 +60,9 @@ module private Parser =
 
     let pNoneLiteral = 
         "'none'" |> choiceL 
-            [ pstringCI "none" 
-              pstringCI "null" 
-              pstringCI "nothing" ] 
+            [ keyword "none" 
+              keyword "null" 
+              keyword "nothing" ] 
         >>% NoneLiteral
 
     let pStringLiteral = 
@@ -97,16 +98,16 @@ module private Parser =
     
     let pBoolOperator =
         "boolean operator" |> choiceL
-            [ pstringCI "and" .>> spaces1 >>% And
-              pstring "&&"                >>% And
-              pstringCI "or" .>> spaces1  >>% Or
-              pstring "||"                >>% Or ]
+            [ keyword "and" >>% And
+              pstring "&&"  >>% And
+              keyword "or"  >>% Or
+              pstring "||"  >>% Or ]
 
     let pExpression, pExpressionImpl = createParserForwardedToRef()
     let pCompExpr, pCompExprImpl = createParserForwardedToRef()
 
     let pNegation =
-        (pstring "!" <|> attempt (pstringCI "not" .>> followedBy (satisfy (not << isLetter)))) 
+        (pstring "!" <|> keyword "not") 
         >>. pExpression 
         |>> Negation
 
@@ -135,15 +136,17 @@ module private Parser =
         |> srcMap Token.Expression
 
     let pSortBy =
-        (pstringCI "sortby" <|> pstringCI "orderby") 
-        >>. (opt (pstringCI "descending") |>> Option.isSome) 
+        attempt (
+            (pstringCI "sortby" <|> pstringCI "orderby") 
+            >>. (opt (pstringCI "descending") |>> Option.isSome) 
+            .>> followedBy (satisfy (not << isLetter)))
         .>>. pExpression 
         |>> SortBy
 
     let pOperation =
         "operation" |> choiceL
-            [ pstringCI "where" >>. pExpression |>> Where
-              pstringCI "select" >>. sepBy1 (ws pIdentifier) (pchar ',') |>> Select
+            [ keyword "where" >>. pExpression |>> Where
+              keyword "select" >>. sepBy1 (ws pIdentifier) (pchar ',') |>> Select
               pSortBy ]
         |> srcMap Token.Operation
 
