@@ -12,20 +12,20 @@ type Loadable<'t> = Loading | Loaded of 't
 type Model =
     { Cache : Evaluation.DataCache
       Query : string
-      Eval : Loadable<Result<seq<FieldMap>, string>> }
+      Eval : Loadable<Result<seq<FieldMap>, string> * SourceMap> }
 
 type Message = 
     | UpdateQuery of string
-    | LoadedResult of Result<seq<FieldMap>, string>
+    | LoadedResult of Result<seq<FieldMap>, string> * SourceMap
 
-let evalCmd dc query = Cmd.ofAsync (evaluateQuery dc) query LoadedResult (fun ex -> LoadedResult (Error ex.Message))
+let evalCmd dc query = Cmd.ofAsync (evaluateQuery dc) query LoadedResult (fun ex -> LoadedResult (Error ex.Message, Map.empty))
 
 let init dc = { Cache = dc; Query = ""; Eval = Loading }, evalCmd dc ""
 
 let update message model =
     match message with
     | UpdateQuery q -> { model with Query = q; Eval = Loading }, evalCmd model.Cache q
-    | LoadedResult res -> { model with Eval = Loaded res }, Cmd.none
+    | LoadedResult (res, sm) -> { model with Eval = Loaded (res, sm) }, Cmd.none
 
 let view model dispatch = 
     div [] [
@@ -35,7 +35,7 @@ let view model dispatch =
         match model.Eval with
         | Loading -> 
             yield p [] [ text "Loading result" ]
-        | Loaded (Ok rows) when rows |> Seq.isEmpty |> not ->
+        | Loaded (Ok rows, _) when rows |> Seq.isEmpty |> not ->
             let rows = rows |> Seq.map (Map.toSeq >> Seq.sortBy (fun (_, (i, _)) -> i))
             yield table [] [
                 thead [] [ tr [] [
@@ -49,9 +49,9 @@ let view model dispatch =
                     ]
                 ]
             ]
-        | Loaded (Ok _) -> 
+        | Loaded (Ok _, _) -> 
             yield p [] [ text "No results" ]
-        | Loaded (Error mes) ->
+        | Loaded (Error mes, srcMap) ->
             yield pre 
                 [ attr.classes [ "error" ] ] 
                 [ textf "Error:\n%s" mes ]

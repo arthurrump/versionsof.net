@@ -32,14 +32,26 @@ and Literal =
     | VersionLiteral of Version
     | DateLiteral of DateTime
 
+[<RequireQualifiedAccess>]
+type Token =
+    | DataSource
+    | Operation of Operation
+    | Expression of Expression
+    | Literal of Literal
+
 type CodeStyle = Cs | Fs | Vb
 
 type FieldMap = Map<string, int * obj>
+
+type SourceMap = Map<Token, FParsec.Position * FParsec.Position>
 
 module private Parser =
     open FParsec
 
     let ws p = spaces >>. p .>> spaces
+    let srcMap tkn p : Parser<'a, SourceMap> = 
+        pipe3 getPosition p getPosition (fun prePos res postPos -> res, (prePos, postPos))
+        >>= fun (res, pos) -> updateUserState (Map.add (tkn res) pos) >>% res
 
     let pIdentifier =  many1Satisfy2L isAsciiLetter (fun c -> isAsciiLetter c || c = '.') "an identifier"
 
@@ -68,7 +80,7 @@ module private Parser =
         |>> fun (ns, pre) -> VersionLiteral { Numbers = ns; Preview = pre }
         <?> "a version"
 
-    let pLiteral = pNoneLiteral <|> pStringLiteral <|> attempt pDateLiteral <|> pVersionLiteral
+    let pLiteral = pNoneLiteral <|> pStringLiteral <|> attempt pDateLiteral <|> pVersionLiteral |> srcMap Token.Literal
 
     let pCompOperator = 
         "comparison operator" |> choiceL 
@@ -116,6 +128,7 @@ module private Parser =
             match op with
             | Some (operator, other) -> BooleanExpression (expr, operator, other)
             | None -> expr
+        |> srcMap Token.Expression
 
     let pSortBy =
         (pstringCI "sortby" <|> pstringCI "orderby") 
@@ -128,10 +141,14 @@ module private Parser =
             [ pstringCI "where" >>. pExpression |>> Where
               pstringCI "select" >>. sepBy1 (ws pIdentifier) (pchar ',') |>> Select
               pSortBy ]
+        |> srcMap Token.Operation
 
-    let pPipeline = pipe2 (ws pIdentifier) (many (ws (pchar '|') >>. pOperation) .>> eof) (fun id ops -> { DataSource = id; Operations = ops })
+    let pPipeline = 
+        pipe2 (ws pIdentifier |> srcMap (fun _ -> Token.DataSource)) 
+              (many (ws (pchar '|') >>. pOperation) .>> eof) 
+              (fun id ops -> { DataSource = id; Operations = ops })
 
-let parse = FParsec.CharParsers.run Parser.pPipeline
+let parse = FParsec.CharParsers.runParserOnString Parser.pPipeline Map.empty ""
 
 module PrettyPrint =
     let prettyLiteral style = function
@@ -355,7 +372,7 @@ let evaluate dc = Evaluation.evalPipeline dc
 
 let evaluateQuery dc query = 
     match parse query with
-    | FParsec.CharParsers.Success (pipeline, _, _) ->
-        evaluate dc pipeline
+    | FParsec.CharParsers.Success (pipeline, srcMap, _) ->
+        async { let! res = evaluate dc pipeline in return res, srcMap }
     | FParsec.CharParsers.Failure (mes, _, _) ->
-        async { return Error mes }
+        async { return Error mes, Map.empty }
