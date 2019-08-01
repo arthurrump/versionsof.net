@@ -7,12 +7,11 @@ open System.Net.Http
 open System.Collections.Generic
 open Thoth.Json.Net
 
-type Positioned<'t> =
+type Annotated<'t, 'a> =
     { Value : 't
-      Start : FParsec.Position
-      End : FParsec.Position }
+      Annotation : 'a }
 
-let toPositioned start value ent = { Value = value; Start = start; End = ent }
+let toPositioned start value ent = { Value = value; Annotation = (start, ent) }
 
 [<RequireQualifiedAccess>]
 type Position =
@@ -20,21 +19,21 @@ type Position =
     | Single of FParsec.Position
     | Range of FParsec.Position * FParsec.Position
 
-let getPosition pos = Position.Range (pos.Start, pos.End)
+let getPosition pos = Position.Range pos.Annotation
 
-type Pipeline = 
-    { DataSource : Positioned<string>
-      Operations : Positioned<Operation> list }
+type Pipeline<'a> = 
+    { DataSource : Annotated<string, 'a>
+      Operations : Annotated<Operation<'a>, 'a> list }
 
-and Operation =
-    | Where of Positioned<Expression>
-    | Select of fields : Positioned<string> list
-    | SortBy of descending: bool * Positioned<Expression>
+and Operation<'a> =
+    | Where of Annotated<Expression<'a>, 'a>
+    | Select of fields : Annotated<string, 'a> list
+    | SortBy of descending: bool * Annotated<Expression<'a>, 'a>
 
-and Expression =
-    | Comparison of Positioned<Expression> * CompOperator * Positioned<Expression>
-    | BooleanExpression of Positioned<Expression> * BoolOperator * Positioned<Expression>
-    | Negation of Positioned<Expression>
+and Expression<'a> =
+    | Comparison of Annotated<Expression<'a>, 'a> * CompOperator * Annotated<Expression<'a>, 'a>
+    | BooleanExpression of Annotated<Expression<'a>, 'a> * BoolOperator * Annotated<Expression<'a>, 'a>
+    | Negation of Annotated<Expression<'a>, 'a>
     | Field of string
     | Literal of Literal
 
