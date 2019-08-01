@@ -11,7 +11,7 @@ let private (|Int|_|) str =
     | (true, i) -> Some i
     | (false, _) -> None
 
-let fieldMap fieldList =
+let toFieldMap fieldList =
     fieldList
     |> Seq.map2 (fun i (name, o) -> name, (i, o)) (Seq.initInfinite id) 
     |> Map.ofSeq
@@ -84,7 +84,7 @@ module Core =
               "csharp", box (sdk.CsharpVersion |> Option.map box)
               "fsharp", box (sdk.FsharpVersion |> Option.map box)
               "vb", box (sdk.VbVersion |> Option.map box) ]
-            |> fieldMap
+            |> toFieldMap
 
     type Runtime =
         { Version : Version
@@ -111,7 +111,7 @@ module Core =
             [ "version", box rt.Version
               "date", box rt.ReleaseDate
               "visualStudio", box (rt.VsVersion |> List.map box) ]
-            |> fieldMap
+            |> toFieldMap
 
     type Release =
         { Version : Version
@@ -147,7 +147,7 @@ module Core =
               "sdk", box (rel.Sdks |> List.map box)
               "aspRuntime", box (rel.AspRuntime |> Option.map box)
               "cve", box (rel.Cves |> List.map box) ]
-            |> fieldMap
+            |> toFieldMap
 
     let releases = [
         { Version = { Numbers = [1;0;0]; Preview = None }
@@ -219,7 +219,7 @@ module Framework =
               "serverIncluded", box (rel.IncludedInServer |> Option.map box)
               "windowsInstallable", box (rel.InstallableOnWindows |> List.map box)
               "serverInstallable", box (rel.InstallableOnServer |> List.map box) ]
-            |> fieldMap
+            |> toFieldMap
 
 // Mono
 ///////
@@ -246,4 +246,4 @@ module Mono =
             [ "version", box rel.Version
               "date", box (rel.ReleaseDate |> Option.map box)
               "skipped", box rel.Skipped ]
-            |> fieldMap
+            |> toFieldMap

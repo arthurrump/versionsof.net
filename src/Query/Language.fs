@@ -7,19 +7,34 @@ open System.Net.Http
 open System.Collections.Generic
 open Thoth.Json.Net
 
+type Positioned<'t> =
+    { Value : 't
+      Start : FParsec.Position
+      End : FParsec.Position }
+
+let toPositioned start value ent = { Value = value; Start = start; End = ent }
+
+[<RequireQualifiedAccess>]
+type Position =
+    | None
+    | Single of FParsec.Position
+    | Range of FParsec.Position * FParsec.Position
+
+let getPosition pos = Position.Range (pos.Start, pos.End)
+
 type Pipeline = 
-    { DataSource : string
-      Operations : Operation list }
+    { DataSource : Positioned<string>
+      Operations : Positioned<Operation> list }
 
 and Operation =
-    | Where of Expression
-    | Select of fields : string list
-    | SortBy of descending: bool * Expression
+    | Where of Positioned<Expression>
+    | Select of fields : Positioned<string> list
+    | SortBy of descending: bool * Positioned<Expression>
 
 and Expression =
-    | Comparison of Expression * CompOperator * Expression
-    | BooleanExpression of Expression * BoolOperator * Expression
-    | Negation of Expression
+    | Comparison of Positioned<Expression> * CompOperator * Positioned<Expression>
+    | BooleanExpression of Positioned<Expression> * BoolOperator * Positioned<Expression>
+    | Negation of Positioned<Expression>
     | Field of string
     | Literal of Literal
 
@@ -32,29 +47,18 @@ and Literal =
     | VersionLiteral of Version
     | DateLiteral of DateTime
 
-[<RequireQualifiedAccess>]
-type Token =
-    | None
-    | AtPosition of FParsec.Position
-    | DataSource
-    | Operation of Operation
-    | Expression of Expression
-    | Literal of Literal
-
 type CodeStyle = Cs | Fs | Vb
 
 type FieldMap = Map<string, int * obj>
 
-type SourceMap = Map<Token, FParsec.Position * FParsec.Position>
+// type SourceMap = Map<Token, FParsec.Position * FParsec.Position>
 
 module private Parser =
     open FParsec
 
     let ws p = spaces >>. p .>> spaces
     let keyword str = attempt (pstringCI str .>> followedBy (satisfy (not << isLetter))) <?> "'" + str + "'"
-    let srcMap tkn p : Parser<'a, SourceMap> = 
-        pipe3 getPosition p getPosition (fun prePos res postPos -> res, (prePos, postPos))
-        >>= fun (res, pos) -> updateUserState (Map.add (tkn res) pos) >>% res
+    let positioned p = pipe3 getPosition p getPosition toPositioned
 
     let pIdentifier =  many1Satisfy2L isAsciiLetter (fun c -> isAsciiLetter c || c = '.') "an identifier"
 
@@ -83,7 +87,7 @@ module private Parser =
         |>> fun (ns, pre) -> VersionLiteral { Numbers = ns; Preview = pre }
         <?> "a version"
 
-    let pLiteral = pNoneLiteral <|> pStringLiteral <|> attempt pDateLiteral <|> pVersionLiteral |> srcMap Token.Literal
+    let pLiteral = pNoneLiteral <|> pStringLiteral <|> attempt pDateLiteral <|> pVersionLiteral
 
     let pCompOperator = 
         "comparison operator" |> choiceL 
@@ -113,27 +117,26 @@ module private Parser =
 
     let pBasicExpr =
         ws <| choice 
-            [ pNegation
+            [ pNegation |> positioned
               between (pchar '(') (pchar ')') pExpression 
-              pLiteral |>> Literal
-              pIdentifier |>> Field ]
-        |> srcMap Token.Expression
+              pLiteral |>> Literal |> positioned
+              pIdentifier |>> Field |> positioned ]
     
     do pCompExprImpl := 
         pBasicExpr .>>. opt (pCompOperator .>>. pCompExpr)
         |>> fun (expr, op) ->
             match op with
             | Some (operator, other) -> Comparison (expr, operator, other)
-            | None -> expr
-        |> srcMap Token.Expression
+            | None -> expr.Value
+        |> positioned
 
     do pExpressionImpl :=
         pCompExpr .>>. opt (pBoolOperator .>>. pExpression)
         |>> fun (expr, op) ->
             match op with
             | Some (operator, other) -> BooleanExpression (expr, operator, other)
-            | None -> expr
-        |> srcMap Token.Expression
+            | None -> expr.Value
+        |> positioned
 
     let pSortBy =
         attempt (
@@ -146,16 +149,16 @@ module private Parser =
     let pOperation =
         "operation" |> choiceL
             [ keyword "where" >>. pExpression |>> Where
-              keyword "select" >>. sepBy1 (ws pIdentifier) (pchar ',') |>> Select
+              keyword "select" >>. sepBy1 (ws (positioned pIdentifier)) (pchar ',') |>> Select
               pSortBy ]
-        |> srcMap Token.Operation
+        |> positioned
 
     let pPipeline = 
-        pipe2 (ws pIdentifier |> srcMap (fun _ -> Token.DataSource)) 
+        pipe2 (ws (positioned pIdentifier))
               (many (ws (pchar '|') >>. pOperation) .>> eof) 
               (fun id ops -> { DataSource = id; Operations = ops })
 
-let parse = FParsec.CharParsers.runParserOnString Parser.pPipeline Map.empty ""
+let parse = FParsec.CharParsers.runParserOnString Parser.pPipeline () ""
 
 module PrettyPrint =
     let prettyLiteral style = function
@@ -183,28 +186,28 @@ module PrettyPrint =
             prettyLiteral style lit
         | Negation expr -> 
             (match style with Cs -> "(!" | Fs -> "(not " | Vb -> "(Not ") 
-            + prettyExpression style expr 
+            + prettyExpression style expr.Value
             + ")"
         | BooleanExpression (l, op, r) ->
-            sprintf "(%s %s %s)" (prettyExpression style l) (prettyBoolOperator style op) (prettyExpression style r)
+            sprintf "(%s %s %s)" (prettyExpression style l.Value) (prettyBoolOperator style op) (prettyExpression style r.Value)
         | Comparison (l, op, r) ->
-            sprintf "(%s %s %s)" (prettyExpression style l) (prettyCompOperator style op) (prettyExpression style r)
+            sprintf "(%s %s %s)" (prettyExpression style l.Value) (prettyCompOperator style op) (prettyExpression style r.Value)
 
     let prettyOperation style = function
         | Select fields -> 
             "| " + (match style with Cs | Vb -> "Select" | Fs -> "select") + " "
-            + (fields |> String.concat ", ")
+            + (fields |> List.map (fun f -> f.Value) |> String.concat ", ")
         | Where expr ->
             "| " + (match style with Cs | Vb -> "Where" | Fs -> "where") + " "
-            + (prettyExpression style expr)
+            + (prettyExpression style expr.Value)
         | SortBy (desc, expr) ->
             "| " + (match style with Cs | Vb -> "OrderBy" | Fs -> "sortBy") 
             + (if desc then "Descending " else " ")
-            + (prettyExpression style expr)
+            + (prettyExpression style expr.Value)
 
     let prettyPipeline style pipeline =
-        pipeline.DataSource + "\n" 
-        + (pipeline.Operations |> List.map (prettyOperation style) |> String.concat "\n")
+        pipeline.DataSource.Value + "\n" 
+        + (pipeline.Operations |> List.map (fun op -> op.Value |> prettyOperation style) |> String.concat "\n")
 
 module Evaluation =
     open Query.Data
@@ -216,7 +219,7 @@ module Evaluation =
             | Ok x :: rest -> Result.map (fun r -> x::r) (allOk rest)
             | Error x :: _ -> Error x
 
-    let errf tkn fmt = Printf.ksprintf (fun mes -> Error (tkn, mes)) fmt
+    let errf pos fmt = Printf.ksprintf (fun mes -> Error (pos, mes)) fmt
     
     let dataUrl (dataSource : string) = 
         sprintf "/query/%s.json" (dataSource.Split('.') |> String.concat "/")
@@ -235,7 +238,7 @@ module Evaluation =
                         cache.Add (dataSource, body)
                         return body
                     else
-                        return! errf Token.None "Request for %s failed with status code %A" dataSource res.StatusCode
+                        return! errf Position.None "Request for %s failed with status code %A" dataSource res.StatusCode
             }
 
     let evalCompOperator = function
@@ -289,9 +292,9 @@ module Evaluation =
             match op with
             | Equal -> list |> List.contains other |> ok
             | NotEqual -> list |> List.contains other |> not |> ok
-            | _ -> errf (Token.Expression expr) "Comparison %A is not supported for lists" op
+            | _ -> errf (getPosition expr) "Comparison %A is not supported for lists" op
         | _ ->
-            errf (Token.Expression expr) "Comparison is not supported between types %s and %s" (typeName left) (typeName right)
+            errf (getPosition expr) "Comparison is not supported between types %s and %s" (typeName left) (typeName right)
 
     let evalLiteral = function
         | NoneLiteral -> box None
@@ -299,58 +302,58 @@ module Evaluation =
         | VersionLiteral v -> box v
         | DateLiteral d -> box d
 
-    let rec evalExpression data = function
-        | Field name as expr -> 
+    let rec evalExpression data expr =
+        let errf fmt = errf (getPosition expr) fmt
+        match expr.Value with
+        | Field name -> 
             match data |> Map.tryFind name with
             | Some (_, x) -> Ok x
-            | None -> errf (Token.Expression expr) "The field '%s' does not exist. Available fields: %s" 
-                       name (data |> Map.toList |> List.map fst |> String.concat ", ")
+            | None -> errf "The field '%s' does not exist." name
         | Literal lit -> 
             evalLiteral lit |> Ok
-        | Negation expr as neg ->
+        | Negation expr ->
             match evalExpression data expr with
             | Ok b when (b :? bool) -> Ok (box (not (unbox b)))
-            | Ok o -> errf (Token.Expression neg) "Value of type %s is not negatable" (typeName o)
+            | Ok o -> errf "Value of type %s is not negatable" (typeName o)
             | Error e -> Error e
-        | Comparison (lexpr, op, rexpr) as expr ->
+        | Comparison (lexpr, op, rexpr) ->
             match evalExpression data lexpr, evalExpression data rexpr with
             | Ok l, Ok r -> evalComparison expr op l r 
             | Error e, _ | _, Error e -> Error e
-        | BooleanExpression (lexpr, op, rexpr) as expr ->
+        | BooleanExpression (lexpr, op, rexpr) ->
             match evalExpression data lexpr, evalExpression data rexpr with
             | Ok l, Ok r when (l :? bool) && (r :? bool) -> 
                 evalBoolOperator op (unbox l) (unbox r) |> box |> Ok
             | Ok l, Ok r ->
-                errf (Token.Expression expr) "Boolean operation requires two booleans, but got %s and %s" (typeName l) (typeName r)
+                errf "Boolean operation requires two booleans, but got %s and %s" (typeName l) (typeName r)
             | Error e, _  | _, Error e -> 
                 Error e
 
-    let evalOperation = function
-        | Select fields as op -> 
+    let evalOperation op = 
+        match op.Value with
+        | Select fields -> 
             Seq.map (fun fieldMap ->
                 [ for f in fields -> 
-                    match fieldMap |> Map.tryFind f with
-                    | Some (_, x) -> Ok (f, x)
-                    | None -> errf (Token.Operation op) "The field '%s' does not exist. Available fields: %s" 
-                                f (fieldMap |> Map.toList |> List.map fst |> String.concat ", ")
+                    match fieldMap |> Map.tryFind f.Value with
+                    | Some (_, x) -> Ok (f.Value, x)
+                    | None -> errf (getPosition f) "The field '%s' does not exist." f.Value
                 ] |> Result.allOk)
             >> Seq.toList
             >> Result.allOk
-            >> Result.map (Seq.map fieldMap)
-        | Where expr as op -> 
-            Seq.map (fun x -> 
-                match evalExpression x expr with
+            >> Result.map (Seq.map toFieldMap)
+        | Where expr -> 
+            Seq.map (fun fieldMap -> 
+                match evalExpression fieldMap expr with
                 | Ok b when (b :? bool) -> Ok (unbox b)
-                | Ok o -> errf (Token.Operation op) "Expression needs to be of type bool, but is of type %s" (typeName o)
+                | Ok o -> errf (getPosition expr) "Expression needs to be of type bool, but is of type %s" (typeName o)
                 | Error e -> Error e
-                |> Result.map (fun b -> b, x))
+                |> Result.map (fun b -> b, fieldMap))
             >> Seq.toList
             >> Result.allOk
-            >> Result.map (Seq.filter fst)
-            >> Result.map (Seq.map snd)
+            >> Result.map (Seq.filter fst >> Seq.map snd)
         | SortBy (desc, expr) ->
             let sortBy = if desc then Seq.sortByDescending else Seq.sortBy
-            Seq.map (fun fm -> evalExpression fm expr |> Result.map (fun ex -> (ex, fm)))
+            Seq.map (fun fieldMap -> evalExpression fieldMap expr |> Result.map (fun ex -> (ex, fieldMap)))
             >> Seq.toList
             >> Result.allOk
             >> Result.map (sortBy (fst >> unbox) >> Seq.map snd)
@@ -362,24 +365,24 @@ module Evaluation =
         let eval' fieldmap = List.map fieldmap >> evalOperations pipeline.Operations
         let eval decoder fieldmap =
             asyncResult {
-                let! json = dataCache.Get pipeline.DataSource
-                let! data = Decode.fromString (Decode.list decoder) json |> Result.mapError (fun mes -> Token.None, mes)
+                let! json = dataCache.Get pipeline.DataSource.Value
+                let! data = Decode.fromString (Decode.list decoder) json |> Result.mapError (fun mes -> Position.None, mes)
                 return! data |> eval' fieldmap
             }
 
-        match pipeline.DataSource with
+        match pipeline.DataSource.Value with
         | "core.releases" -> eval Core.Release.Decoder Core.Release.FieldMap
         | "core.runtimes" -> eval Core.Runtime.Decoder Core.Runtime.FieldMap
         | "core.sdks" -> eval Core.Sdk.Decoder Core.Sdk.FieldMap
         | "framework.releases" -> eval Framework.Release.Decoder Framework.Release.FieldMap
         | "mono.releases" -> eval Mono.Release.Decoder Mono.Release.FieldMap
-        | invalid -> async { return errf Token.DataSource "Invalid data source '%s'" invalid }
+        | invalid -> async { return errf (getPosition pipeline.DataSource) "Invalid data source '%s'" invalid }
 
 let evaluate dc = Evaluation.evalPipeline dc
 
 let evaluateQuery dc query = 
     match parse query with
-    | FParsec.CharParsers.Success (pipeline, srcMap, _) ->
-        async { let! res = evaluate dc pipeline in return res, srcMap }
-    | FParsec.CharParsers.Failure (mes, err, srcMap) ->
-        async { return Error (Token.AtPosition err.Position, mes), srcMap }
+    | FParsec.CharParsers.Success (pipeline, (), _) ->
+        async { let! res = evaluate dc pipeline in return res }
+    | FParsec.CharParsers.Failure (mes, err, _) ->
+        async { return Error (Position.Single err.Position, mes) }

@@ -12,20 +12,20 @@ type Loadable<'t> = Loading | Loaded of 't
 type Model =
     { Cache : Evaluation.DataCache
       Query : string
-      Eval : Loadable<Result<seq<FieldMap>, Token * string> * SourceMap> }
+      Eval : Loadable<Result<seq<FieldMap>, Position * string>> }
 
 type Message = 
     | UpdateQuery of string
-    | LoadedResult of Result<seq<FieldMap>, Token * string> * SourceMap
+    | LoadedResult of Result<seq<FieldMap>, Position * string>
 
-let evalCmd dc query = Cmd.ofAsync (evaluateQuery dc) query LoadedResult (fun ex -> LoadedResult (Error (Token.None, ex.Message), Map.empty))
+let evalCmd dc query = Cmd.ofAsync (evaluateQuery dc) query LoadedResult (fun ex -> LoadedResult (Error (Position.None, ex.Message)))
 
 let init dc = { Cache = dc; Query = ""; Eval = Loading }, evalCmd dc ""
 
 let update message model =
     match message with
     | UpdateQuery q -> { model with Query = q; Eval = Loading }, evalCmd model.Cache q
-    | LoadedResult (res, sm) -> { model with Eval = Loaded (res, sm) }, Cmd.none
+    | LoadedResult res -> { model with Eval = Loaded res }, Cmd.none
 
 let view model dispatch = 
     div [] [
@@ -35,7 +35,7 @@ let view model dispatch =
         match model.Eval with
         | Loading -> 
             yield p [] [ text "Loading result" ]
-        | Loaded (Ok rows, _) when rows |> Seq.isEmpty |> not ->
+        | Loaded (Ok rows) when rows |> Seq.isEmpty |> not ->
             let rows = rows |> Seq.map (Map.toSeq >> Seq.sortBy (fun (_, (i, _)) -> i))
             yield table [] [
                 thead [] [ tr [] [
@@ -49,16 +49,17 @@ let view model dispatch =
                     ]
                 ]
             ]
-        | Loaded (Ok _, _) -> 
+        | Loaded (Ok _) -> 
             yield p [] [ text "No results" ]
-        | Loaded (Error (token, mes), srcMap) ->
+        | Loaded (Error (pos, mes)) ->
+            let pos =
+                match pos with
+                | Position.None -> ""
+                | Position.Single p -> sprintf " at %i:%i" p.Line p.Column
+                | Position.Range (s, e) -> sprintf " at %i:%i-%i:%i" s.Line s.Column e.Line e.Column
             yield pre 
                 [ attr.classes [ "error" ] ] 
-                [ textf "Error:\n%s" mes ]
-        match parse model.Query with
-        | FParsec.CharParsers.Success (p, _, _) -> 
-            yield pre [ attr.classes [ "pretty" ] ] [ text (PrettyPrint.prettyPipeline Fs p) ]
-        | _ -> ()
+                [ textf "Error%s:\n%s" pos mes ]
     ]
 
 type App() =
