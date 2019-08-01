@@ -120,6 +120,7 @@ module private Parser =
               between (pchar '(') (pchar ')') pExpression 
               pLiteral |>> Literal |> positioned
               pIdentifier |>> Field |> positioned ]
+        <?> "an expression"
     
     do pCompExprImpl := 
         pBasicExpr .>>. opt (pCompOperator .>>. pCompExpr)
@@ -128,6 +129,7 @@ module private Parser =
             | Some (operator, other) -> Comparison (expr, operator, other)
             | None -> expr.Value
         |> positioned
+        <?> "an expression"
 
     do pExpressionImpl :=
         pCompExpr .>>. opt (pBoolOperator .>>. pExpression)
@@ -136,6 +138,7 @@ module private Parser =
             | Some (operator, other) -> BooleanExpression (expr, operator, other)
             | None -> expr.Value
         |> positioned
+        <?> "an expression"
 
     let pSortBy =
         attempt (
