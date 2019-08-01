@@ -56,7 +56,7 @@ module private Parser =
     open FParsec
 
     let ws p = spaces >>. p .>> spaces
-    let keyword str = attempt (pstringCI str .>> followedBy (satisfy (not << isLetter))) <?> "'" + str + "'"
+    let keyword str = attempt (pstringCI str .>> followedBy (skipSatisfy (not << isLetter) <|> eof)) <?> "'" + str + "'"
     let positioned p = pipe3 getPosition p getPosition toPositioned
 
     let pIdentifier =  many1Satisfy2L isAsciiLetter (fun c -> isAsciiLetter c || c = '.') "an identifier"
