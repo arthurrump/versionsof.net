@@ -109,8 +109,8 @@ let rowToRelease (wikiRow : Wikipedia.OverviewOfNetFrameworkReleaseHistory123.Ro
         let! clr = async { return wikiRow.``CLR version`` |> string |> wikiVersion } |> ResultT
         let windows = wikiRow.``Included in - Windows`` |> wikiString
         let server = wikiRow.``Included in - Windows Server`` |> wikiString
-        let installWindows = wikiRow.``Can be installed on[4] - Windows`` |> wikiList
-        let installServer = wikiRow.``Can be installed on[4] - Windows Server`` |> wikiList
+        let installWindows = wikiRow.``Can be installed on[1] - Windows`` |> wikiList
+        let installServer = wikiRow.``Can be installed on[1] - Windows Server`` |> wikiList
 
         let links = docsRow.CssSelect("td").Head.CssSelect("a")
         let features = links |> findLinkUrl "New features"
