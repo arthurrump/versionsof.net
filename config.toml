@@ -1,5 +1,5 @@
-# releases-index-url = "https://github.com/arthurrump/dotnet-core/blob/github-url/release-notes/releases-index.json"
-releases-index-url = "https://dotnetcli.blob.core.windows.net/dotnet/release-metadata/releases-index.json"
+# releases-index-url = "https://dotnetcli.blob.core.windows.net/dotnet/release-metadata/releases-index.json"
+releases-index-url = "https://github.com/arthurrump/dotnet-core/blob/github-url/release-notes/releases-index.json"
 
 mono-repo = "mono/website"
 mono-path = "docs/about-mono/releases"
