@@ -1,5 +1,5 @@
 [[redirects]]
 from = "https://versionsofnet.netlify.com/*"
 to = "https://versionsof.net/:splat"
-status = 200
+status = 301
 force = true
