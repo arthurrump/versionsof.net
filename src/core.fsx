@@ -155,7 +155,7 @@ let private supportIndicator supportPhase =
     | "current" ->     indicator "Current" "green"
     | "lts" ->         indicator "Long Term Support" "yellow"
     | "eol" ->         indicator "End of Life" "red"
-    | "maintenance" -> indicator "Maintenance" "yellow"
+    | "maintenance" -> indicator "Maintenance" "orange"
     | t -> indicatorSymb [ str "?" ] t "border-black"
 
 let private channelsTable channels =

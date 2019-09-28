@@ -356,6 +356,10 @@ section h1 {
         background: #ffc107;
     }
 
+    .status-indicator.orange {
+        background: #ed7b26;
+    }
+
     .status-indicator.red {
         background: #dc3545;
     }
