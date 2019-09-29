@@ -15,7 +15,10 @@ let content =
     div [ _class "inner-container" ] [
         h1 [ _class "inner-spaced" ] [ str "Query" ]
         div [ _id "query-main" ] [
-            str "Loading"
+            div [ _class "loading" ] [
+                div [ _class "loading-circle" ] []
+                str "Loading"
+            ]
         ]
         XmlEngine.tag "script" [ _src "/query/_framework/blazor.webassembly.js" ] []
     ]

@@ -540,3 +540,27 @@ body > footer {
     #error-page .status-text {
         font-size: 2.4rem;
     }
+
+/* Query page */
+.loading {
+    width: 100%;
+
+    display: flex;
+    flex-flow: column nowrap;
+    align-items: center;
+}
+
+    .loading .loading-circle {
+        border-radius: 100%;
+        border: 10px dotted #000;
+        animation: rotate 3s infinite ease;
+
+        width: 100px;
+        height: 100px;
+        margin: 20px;
+    }
+
+        @keyframes rotate {
+            0% { transform: rotateZ(0deg); }
+            100% { transform: rotateZ(360deg); }
+        }
