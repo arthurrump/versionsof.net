@@ -357,7 +357,9 @@ let content = function
                     | Some asp -> yield filesList "ASP.NET Runtime" asp.Files
                     | None -> ()
                     match rel.Symbols with
-                    | Some symb -> yield filesList "Symbols" symb.Files
+                    | Some symb -> 
+                        if (not << List.isEmpty) symb.Files then 
+                            yield filesList "Symbols" symb.Files
                     | None -> ()
                 ]
             ]
