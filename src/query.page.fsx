@@ -17,5 +17,5 @@ let content =
         div [ _id "query-main" ] [
             str "Loading"
         ]
-        XmlEngine.tag "script" [ _src "/_framework/blazor.webassembly.js" ] []
+        XmlEngine.tag "script" [ _src "/query/_framework/blazor.webassembly.js" ] []
     ]

@@ -24,7 +24,7 @@ jobs:
       arguments: install fake-cli --tool-path .fake
   - script: .\.fake\fake.exe build -t configure -- $(GitHub.ClientId) $(GitHub.ClientSecret)
     displayName: "FAKE Configure"
-  - script: .\.fake\fake.exe build -t generate
+  - script: .\.fake\fake.exe build
     displayName: "FAKE Generate"
   - publish: $(Build.SourcesDirectory)/public
     artifact: public
