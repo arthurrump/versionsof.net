@@ -135,7 +135,6 @@ let rowToRelease (wikiRow : Wikipedia.OverviewOfNetFrameworkReleaseHistory123.Ro
 let getVersion (docRow : HtmlNode) =
     docRow.CssSelect("td").Head.DirectInnerText().Split('\n').[0].Trim()
 
-
 let tryGetReleases () =
     let nv = Version.parse >> Option.map (Version.pad 3)
     async {
@@ -146,12 +145,11 @@ let tryGetReleases () =
         return!
             wiki.Tables.``Overview of .NET Framework release history[1][2][3]``.Rows
             |> List.ofArray
-            |> List.map (fun row -> 
-                let drow = 
-                    docsRows 
-                    |> List.find (fun r -> nv (getVersion r) = nv row.``Version number``)
-                rowToRelease row drow
-                |> Async.map (Result.mapError (sprintf "Error parsing Framework %A: %s" row.``Version number``)))
+            |> List.choose (fun row ->  
+                docsRows 
+                |> List.tryFind (fun r -> nv (getVersion r) = nv row.``Version number``)
+                |> Option.map (rowToRelease row)
+                |> Option.map (Async.map (Result.mapError (sprintf "Error parsing Framework %A: %s" row.``Version number``))))
             |> Async.Parallel
             |> Async.map (Array.toList >> Result.allOk)
     }
