@@ -102,15 +102,15 @@ let getReleaseNotesMarkdown (urlOption : string option) =
     | Some _ | None -> 
         async { return Ok None }
 
-let rowToRelease (wikiRow : Wikipedia.OverviewOfNetFrameworkReleaseHistory123.Row) (docsRow : HtmlNode) =
+let rowToRelease (wikiRow : Wikipedia.OverviewOfNetFrameworkReleaseHistory1234.Row) (docsRow : HtmlNode) =
     monad {
-        let! version = async { return wikiRow.``Version number`` |> wikiVersion } |> ResultT
+        let! version = async { return wikiRow.Version |> wikiVersion } |> ResultT
         let! date = async { return wikiRow.``Release date`` |> wikiDate } |> ResultT
-        let! clr = async { return wikiRow.``CLR version`` |> string |> wikiVersion } |> ResultT
+        let! clr = async { return wikiRow.CLR |> string |> wikiVersion } |> ResultT
         let windows = wikiRow.``Included in - Windows`` |> wikiString
         let server = wikiRow.``Included in - Windows Server`` |> wikiString
-        let installWindows = wikiRow.``Can be installed on[1] - Windows`` |> wikiList
-        let installServer = wikiRow.``Can be installed on[1] - Windows Server`` |> wikiList
+        let installWindows = wikiRow.``Can be installed on[2] - Windows`` |> wikiList
+        let installServer = wikiRow.``Can be installed on[2] - Windows Server`` |> wikiList
 
         let links = docsRow.CssSelect("td").Head.CssSelect("a")
         let features = links |> findLinkUrl "New features"
@@ -143,13 +143,13 @@ let tryGetReleases () =
         let docsTable = msDocs.Html.CssSelect("main#main table") |> List.head
         let docsRows = docsTable.CssSelect("tbody tr")
         return!
-            wiki.Tables.``Overview of .NET Framework release history[1][2][3]``.Rows
+            wiki.Tables.``Overview of .NET Framework release history[1][2][3][4]``.Rows
             |> List.ofArray
             |> List.choose (fun row ->  
                 docsRows 
-                |> List.tryFind (fun r -> nv (getVersion r) = nv row.``Version number``)
+                |> List.tryFind (fun r -> nv (getVersion r) = nv row.Version)
                 |> Option.map (rowToRelease row)
-                |> Option.map (Async.map (Result.mapError (sprintf "Error parsing Framework %A: %s" row.``Version number``))))
+                |> Option.map (Async.map (Result.mapError (sprintf "Error parsing Framework %A: %s" row.Version))))
             |> Async.Parallel
             |> Async.map (Array.toList >> Result.allOk)
     }
