@@ -9,7 +9,7 @@ nuget Nett
 nuget YamlDotNet
 nuget NetCoreVersions
 nuget FSharp.Data
-nuget FSharpPlus //"
+nuget FsToolkit.ErrorHandling //"
 #load "./.fake/build.fsx/intellisense.fsx"
 
 open Fake.Core

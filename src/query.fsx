@@ -151,8 +151,8 @@ module Framework =
         { Version : Version
           ReleaseDate : DateTime
           ClrVersion : Version
-          IncludedInWindows : string option
-          IncludedInServer : string option
+          IncludedInWindows : string list
+          IncludedInServer : string list
           InstallableOnWindows : string list
           InstallableOnServer : string list }
 
@@ -161,8 +161,8 @@ module Framework =
                 yield "version", Encode.string (string rel.Version)
                 yield "date", Encode.datetime rel.ReleaseDate
                 yield "clr", Encode.string (string rel.ClrVersion)
-                match rel.IncludedInWindows with Some win -> yield "windows", Encode.string win | _ -> ()
-                match rel.IncludedInServer with Some ser -> yield "server", Encode.string ser | _ -> ()
+                yield "windows", Encode.list (rel.InstallableOnWindows |> List.map Encode.string)
+                yield "server", Encode.list (rel.InstallableOnServer |> List.map Encode.string)
                 yield "windows-inst", Encode.list (rel.InstallableOnWindows |> List.map Encode.string)
                 yield "server-inst", Encode.list (rel.InstallableOnServer |> List.map Encode.string)
             ]
@@ -172,8 +172,8 @@ module Framework =
                 { Version = get.Required.Field "version" Decode.version
                   ReleaseDate = get.Required.Field "date" Decode.datetime
                   ClrVersion = get.Required.Field "clr" Decode.version
-                  IncludedInWindows = get.Optional.Field "windows" Decode.string
-                  IncludedInServer = get.Optional.Field "server" Decode.string
+                  IncludedInWindows = get.Required.Field "windows" (Decode.list Decode.string)
+                  IncludedInServer = get.Required.Field "server" (Decode.list Decode.string)
                   InstallableOnWindows = get.Required.Field "windows-inst" (Decode.list Decode.string)
                   InstallableOnServer = get.Required.Field "server-inst" (Decode.list Decode.string) })
 

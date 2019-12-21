@@ -31,6 +31,18 @@ module Result =
         | Ok x :: rest -> Result.map (fun r -> x::r) (allOk rest)
         | Error x :: _ -> Error x
 
+    let ofOption err = function
+    | Some x -> Ok x
+    | None -> Error err
+
+module Option =
+    type OptionBuilder() =
+        member __.Bind(opt, f) = Option.bind f opt
+        member __.Return(value) = Some value
+        member __.ReturnFrom(value) = value
+    
+    let option = OptionBuilder()
+
 module Version =
     let simplify version =
         match version.Preview with

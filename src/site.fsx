@@ -1,6 +1,4 @@
 module Site
-open FSharpPlus.Builders
-open FSharpPlus.Data
 
 #load "../.fake/build.fsx/intellisense.fsx"
 #if !FAKE
@@ -20,6 +18,7 @@ open Fake.StaticGen.Markdown
 open System.IO
 open System.Text
 
+open FsToolkit.ErrorHandling.AsyncResultCEExtensions
 open Markdig
 
 #load "helpers.fsx"
@@ -43,22 +42,22 @@ let getHomePage channels frameworkReleases monoReleases =
     { Url = "/"; Content = HomePage (Core.getInfo channels, Framework.getInfo frameworkReleases, Mono.getInfo monoReleases) }
 
 let tryGetPagesAndFiles config = 
-    monad {
-        let! coreChannels = ResultT <| Core.tryGetChannels config.ReleasesIndexUrl
-        let! coreRelNotes = ResultT <| Core.tryGetReleaseNotes coreChannels
+    asyncResult {
+        let! coreChannels = Core.tryGetChannels config.ReleasesIndexUrl
+        let! coreRelNotes = Core.tryGetReleaseNotes coreChannels
         let corePages = Core.channelsToPages coreChannels coreRelNotes |> Page.mapl CorePage
 
-        let! frameworkReleases = ResultT <| Framework.tryGetReleases ()
+        let! frameworkReleases = Framework.tryGetReleases ()
         let frameworkPages = Framework.releasesToPages frameworkReleases |> Page.mapl FrameworkPage
 
-        let! monoReleases = ResultT <| Mono.tryGetReleases config
+        let! monoReleases = Mono.tryGetReleases config
         let monoPages = Mono.releasesToPages monoReleases |> Page.mapl MonoPage
 
         let homePage = getHomePage coreChannels frameworkReleases monoReleases
         let queryJson = Query.getDataFiles coreChannels frameworkReleases monoReleases
 
         return homePage::corePages @ frameworkPages @ monoPages, queryJson
-    } |> ResultT.run
+    }
 
 let getBreadcrumbs = 
     let home = (".NET", "/")

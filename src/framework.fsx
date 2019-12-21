@@ -17,8 +17,7 @@ open System
 open System.Text.RegularExpressions
 
 open FSharp.Data
-open FSharpPlus.Builders
-open FSharpPlus.Data
+open FsToolkit.ErrorHandling.AsyncResultCEExtensions
 open Markdig
 open NetCore.Versions
 open NetCore.Versions.Data
@@ -33,42 +32,20 @@ type Release =
     { Version : Version
       ReleaseDate : DateTime
       ClrVersion : Version
-      IncludedInWindows : string option
-      IncludedInServer : string option
+      IncludedInVisualStudio : string option
+      IncludedInWindows : string list
+      IncludedInServer : string list
       InstallableOnWindows : string list
       InstallableOnServer : string list
       ReleaseNotes : ReleaseNotes option
       NewFeaturesLink : Url option
       NewAccessibilityLink : Url option }
 
-let [<Literal>] wikipediaUrl = "https://en.wikipedia.org/wiki/Template:.NET_Framework_version_history"
 let [<Literal>] msDocsUrl = "https://docs.microsoft.com/en-us/dotnet/framework/migration-guide/versions-and-dependencies"
+let [<Literal>] lifecycleUrl = """https://support.microsoft.com/api/lifecycle/GetProductsLifecycle?query={"names":[".NET%20Framework"],"years":"0","gdsId":0,"export":false}"""
 
-type Wikipedia = HtmlProvider<wikipediaUrl>
 type MsDocs = HtmlProvider<msDocsUrl, IncludeLayoutTables = true>
-
-let wikiString =
-    let regex = new Regex(@"\[[^\]]*\]")
-    fun (str : string) ->
-        if str.Contains "N/A" 
-        then None 
-        else Some (regex.Replace(str, String.Empty))
-
-let wikiParse tryParse err str =
-    match str |> wikiString |> Option.bind tryParse with
-    | Some res -> Ok res
-    | None -> Error (err str)
-
-let wikiVersion = wikiParse Version.parse (sprintf "Couldn't parse '%s' as a version")
-let wikiDate = wikiParse DateTime.tryParse (sprintf "Couldn't parse '%s' as a date")
-
-let wikiList = 
-    wikiString 
-    >> Option.map (fun s -> 
-        s.Split([| ',' |], StringSplitOptions.RemoveEmptyEntries)
-        |> List.ofArray
-        |> List.map String.trim)
-    >> Option.defaultValue []
+type Lifecycle = JsonProvider<lifecycleUrl>
 
 let docsLinkToUrl (docUrl : string) (link : HtmlNode) =
     let rec combineUrl (baseUrl : string) (suffix : string) =
@@ -77,7 +54,7 @@ let docsLinkToUrl (docUrl : string) (link : HtmlNode) =
         then combineUrl baseUrl (suffix.Substring(3))
         else baseUrl + "/" + suffix
 
-    monad {
+    Option.option {
         let! href = link.TryGetAttribute "href"
         let url = href.Value()
         let! linkType = link.TryGetAttribute "data-linktype"
@@ -102,56 +79,86 @@ let getReleaseNotesMarkdown (urlOption : string option) =
     | Some _ | None -> 
         async { return Ok None }
 
-let rowToRelease (wikiRow : Wikipedia.OverviewOfNetFrameworkReleaseHistory1234.Row) (docsRow : HtmlNode) =
-    monad {
-        let! version = async { return wikiRow.Version |> wikiVersion } |> ResultT
-        let! date = async { return wikiRow.``Release date`` |> wikiDate } |> ResultT
-        let! clr = async { return wikiRow.CLR |> string |> wikiVersion } |> ResultT
-        let windows = wikiRow.``Included in - Windows`` |> wikiString
-        let server = wikiRow.``Included in - Windows Server`` |> wikiString
-        let installWindows = wikiRow.``Can be installed on[2] - Windows`` |> wikiList
-        let installServer = wikiRow.``Can be installed on[2] - Windows Server`` |> wikiList
+let getVersionDocs (versionLinks : HtmlNode) = 
+    versionLinks.DirectInnerText().Split('\n').[0].Trim() |> Version.parse
+let getVersionLifecycle (name : string) =
+    name.Replace("Microsoft", "")
+        .Replace(".NET Framework", "")
+        .Trim()
+    |> Version.parse
 
-        let links = docsRow.CssSelect("td").Head.CssSelect("a")
-        let features = links |> findLinkUrl "New features"
-        let accessibility = links |> findLinkUrl "New in accessibility"
+let rowToRelease (docsRow : HtmlNode) (lifecycle : Lifecycle.Root) =
+    asyncResult {
+        match docsRow.CssSelect("td") with
+        | [ versionLinks; clrVersion; vsVersion; windowsVersions; serverVersions; _ ] ->
+            let links = versionLinks.CssSelect("a")
+            let features = links |> findLinkUrl "New features"
+            let accessibility = links |> findLinkUrl "New in accessibility"
+            let releaseNotes = links |> findLinkUrl "Release notes"
+            let! releaseNotesMarkdown = getReleaseNotesMarkdown releaseNotes
 
-        let releaseNotes = links |> findLinkUrl "Release notes"
-        let! releaseNotesMarkdown = getReleaseNotesMarkdown releaseNotes |> ResultT
-        
-        return 
-            { Version = version
-              ReleaseDate = date
-              ClrVersion = clr
-              IncludedInWindows = windows
-              IncludedInServer = server
-              InstallableOnWindows = installWindows
-              InstallableOnServer = installServer
-              ReleaseNotes = releaseNotes |> Option.map (fun url -> { Link = url; Markdown = releaseNotesMarkdown })
-              NewFeaturesLink = features
-              NewAccessibilityLink = accessibility }
-    } |> ResultT.run
+            let! version = versionLinks |> getVersionDocs |> Result.ofOption "Couldn't parse Framework version."
+            let! clr = 
+                clrVersion.DirectInnerText() 
+                |> Version.parse 
+                |> Result.ofOption "Couldn't parse Framework CLR version."
 
-let getVersion (docRow : HtmlNode) =
-    docRow.CssSelect("td").Head.DirectInnerText().Split('\n').[0].Trim()
+            let partitionVersions (versionsTd : HtmlNode) =
+                if versionsTd.InnerText().Trim() = "-" then
+                    [], []
+                else
+                    let versions = 
+                        versionsTd.InnerText().Split('\n')
+                        |> Array.map (fun s -> 
+                            s.Replace(",", "")
+                             .Replace("Windows Server", "")
+                             .Trim())
+                        |> Array.filter (not << String.IsNullOrEmpty)
+                        |> Array.toList
+                    let inst, incl = versions |> List.partition (fun s -> s.StartsWith("+") || s.EndsWith("*"))
+                    let inst = inst |> List.map (fun s -> s.Replace("*", "").Substring(if s.StartsWith("+") then 1 else 3).Trim())
+                    let incl = incl |> List.map (fun s -> s.Substring(3).Trim())
+                    inst, incl
+            
+            let instWindows, inclWindows = partitionVersions windowsVersions
+            let instServer, inclServer = partitionVersions serverVersions
+            let vsVersion = 
+                let v = vsVersion.InnerText()
+                if String.IsNullOrWhiteSpace v 
+                then None
+                else Some (v.Trim())
+
+            return 
+                { Version = version
+                  ReleaseDate = lifecycle.StartDate
+                  ClrVersion = clr
+                  IncludedInVisualStudio = vsVersion
+                  IncludedInWindows = inclWindows
+                  IncludedInServer = inclServer
+                  InstallableOnWindows = instWindows
+                  InstallableOnServer = instServer
+                  ReleaseNotes = releaseNotes |> Option.map (fun url -> { Link = url; Markdown = releaseNotesMarkdown })
+                  NewFeaturesLink = features
+                  NewAccessibilityLink = accessibility }
+        | _ -> return! Error "Unexpected amount of columns in Framework table."
+    }
 
 let tryGetReleases () =
-    let nv = Version.parse >> Option.map (Version.pad 3)
+    let nv = Option.map (Version.pad 3)
     async {
-        let! wiki = Wikipedia.AsyncGetSample()
         let! msDocs = MsDocs.AsyncGetSample()
         let docsTable = msDocs.Html.CssSelect("main#main table") |> List.head
         let docsRows = docsTable.CssSelect("tbody tr")
+        let! lifecycle = Lifecycle.AsyncGetSamples()
         return!
-            wiki.Tables.``Overview of .NET Framework release history[1][2][3][4]``.Rows
-            |> List.ofArray
-            |> List.choose (fun row ->  
-                docsRows 
-                |> List.tryFind (fun r -> nv (getVersion r) = nv row.Version)
-                |> Option.map (rowToRelease row)
-                |> Option.map (Async.map (Result.mapError (sprintf "Error parsing Framework %A: %s" row.Version))))
+            docsRows
+            |> List.map (fun dr ->
+                let lr = 
+                    lifecycle
+                    |> Array.find (fun l -> nv (getVersionLifecycle l.Name) = nv (getVersionDocs (dr.CssSelect("td").[0])))
+                rowToRelease dr lr)
             |> Async.Parallel
-            |> Async.map (Array.toList >> Result.allOk)
+            |> Async.map (List.ofArray >> Result.allOk)
     }
 
 // Pages
@@ -220,21 +227,21 @@ let private releasesTable releases =
                         span [ _class "label" ] [ str "CLR Version: " ]
                         strf "%O" rel.ClrVersion
                     ]
-                    td [ _class ("windows" + if rel.IncludedInWindows.IsNone then " unknown" else "") ] [
+                    td [ _class ("windows" + if List.isEmpty rel.IncludedInWindows then " unknown" else "") ] [
                         match rel.IncludedInWindows with
-                        | Some windows ->
+                        | [] ->
+                            yield str "-"
+                        | versions ->
                             yield span [ _class "label" ] [ str "Included in Windows " ]
-                            yield str windows
-                        | None ->
-                            yield str "-"
+                            yield str (versions |> List.last)
                     ]
-                    td [ _class ("server" + if rel.IncludedInServer.IsNone then " unknown" else "") ] [
+                    td [ _class ("server" + if List.isEmpty rel.IncludedInServer then " unknown" else "") ] [
                         match rel.IncludedInServer with
-                        | Some server ->
-                            yield span [ _class "label" ] [ str "Included in Windows Server " ]
-                            yield str server
-                        | None ->
+                        | [] ->
                             yield str "-"
+                        | versions ->
+                            yield span [ _class "label" ] [ str "Included in Windows Server " ]
+                            yield str (versions |> List.last)
                     ]
                 ]
             ]
@@ -277,14 +284,14 @@ let content = function
                 yield li [] [ strf "Released on %a" date rel.ReleaseDate ]
                 yield li [] [ strf "CLR Version %O" rel.ClrVersion ]
                 match rel.IncludedInWindows with
-                | Some windows -> yield li [] [ strf "Included in Windows %s" windows ]
-                | None -> ()
+                | [] -> ()
+                | ws -> yield li [] [ ws |> String.concat ", " |> strf "Included in Windows %s" ]
                 match rel.InstallableOnWindows with
                 | [] -> ()
                 | ws -> yield li [] [ ws |> String.concat ", " |> strf "Installable on Windows %s" ]
                 match rel.IncludedInServer with
-                | Some server -> yield li [] [ strf "Included in Windows Server %s" server ]
-                | None -> ()
+                | [] -> ()
+                | ws -> yield li [] [ ws |> String.concat ", " |> strf "Included in Windows Server %s" ]
                 match rel.InstallableOnServer with
                 | [] -> ()
                 | ws -> yield li [] [ ws |> String.concat ", " |> strf "Installable on Windows Server %s" ]
