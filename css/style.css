@@ -34,6 +34,39 @@ ul.props-list > li { background: #fff; }
 body > footer { color: #565656; }
 body > footer a { color: #565656; }
 
+@media (prefers-color-scheme: dark) {
+    body { background: #212121; }
+    body > #background { background: #000; color: #f5f5f5; }
+    a { color: #1291f3; }
+
+    #main-header { background-color: #3B209B; color: #f5f5f5; }
+    #title a { color: #f5f5f5; }
+    #menu-toggle .icon { fill: #f5f5f5; }
+    #main-nav a { color: #f5f5f5; }
+
+    #breadcrumbs a { color: #f5f5f5; }
+
+    section h1 a { color: #f5f5f5; }
+    .latest-versions a { color: #f5f5f5; }
+
+    .overview-table tr { background: #212121; }
+    .overview-table a { color: #f5f5f5; }
+
+    .status-indicator.border-black { border: 0.05rem solid #f5f5f5; color: #f5f5f5; }
+
+    ul.props-list > li { background: #212121; }
+
+    .text { background: #212121; }
+    .text blockquote { border-left-color: #eee; }
+    .text table tr:nth-child(2n) { background-color: #343434; }
+    .text table th, .text table td { border-color:  #666; }
+
+    .downloads .files-list ul li { background: #212121; }
+
+    body > footer { color: #eee; }
+    body > footer a { color: #eee; }
+}
+
 /* General layout */
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, 'Open Sans', 'Helvetica Neue', sans-serif;
