@@ -1,3 +1,39 @@
+/* All colors */
+body > #background { background: #f2f2f2; color: #171717; }
+a { color: #0078d4; }
+
+#main-header { background-color: #512bd4; color: #fff; }
+#title a { color: #fff; }
+#menu-toggle .icon { fill: #fff; }
+#main-nav a { color: #fff; }
+
+#breadcrumbs a { color: #171717; }
+
+section h1 a { color: #171717; }
+.latest-versions a { color: #171717; }
+
+.overview-table tr { background: #fff; }
+.overview-table a { color: #000; }
+
+.status-indicator.green { background: #28a745; }
+.status-indicator.yellow { background: #ffc107; }
+.status-indicator.orange { background: #ed7b26; }
+.status-indicator.red { background: #dc3545; }
+.status-indicator.border-black { border: 0.05rem solid #000; color: #000; }
+.status-indicator.border-red { border: 0.05rem solid #dc3545; color: #dc3545; }
+
+ul.props-list > li { background: #fff; }
+
+.text { background: #fff; }
+.text blockquote { border-left-color: #505050; }
+.text table tr:nth-child(2n) { background-color: #f6f8fa; }
+.text table th, .text table td { border-color:  #dfe2e5; }
+
+.downloads .files-list ul li { background: #fff; }
+
+body > footer { color: #565656; }
+body > footer a { color: #565656; }
+
 /* General layout */
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, 'Open Sans', 'Helvetica Neue', sans-serif;
@@ -10,8 +46,6 @@ body {
 
 body > #background {
     padding: .6rem .6rem 2rem;
-    background: #f2f2f2;
-    color: #171717;
     min-height: calc(100vh - 5.5rem - 2.6rem - 1.6rem - 1.2 * 2 * 0.85rem); /* Put the footer at the bottom if there's not enough content. */
 }
 
@@ -29,7 +63,6 @@ body > #background {
 /* General styles */
 a {
     text-decoration: none;
-    color: #0078d4;
 }
 
     a:hover {
@@ -49,8 +82,6 @@ a {
 
 /* Header */
 #main-header {
-    background-color: #512bd4;
-    color: #fff;
     padding: 2rem .6rem 2rem;
     width: 100%;
     font-size: 1.5rem;
@@ -69,10 +100,6 @@ a {
     margin-right: 2.5rem;
 }
 
-    #title a {
-        color: #fff;
-    }
-
 #menu-toggle {
     float: right;
     display: none;
@@ -89,7 +116,6 @@ a {
         width: 2rem;
         margin: 0;
         padding: 0;
-        fill: #fff;
     }
 
     @media (max-width: 700px) {
@@ -105,10 +131,6 @@ a {
     flex-flow: row nowrap;
     align-items: baseline;
 }
-
-    #main-nav a {
-        color: #fff;
-    }
 
     #main-nav span {
         margin-right: 1.5rem;
@@ -141,10 +163,6 @@ a {
     font-size: .85rem;
 }
 
-    #breadcrumbs a {
-        color: #171717;
-    }
-
     #breadcrumbs .sep {
         margin: 0 .4rem;
     }
@@ -162,10 +180,6 @@ section h1 {
     margin-bottom: .2rem;
 }
 
-    section h1 a {
-        color: #171717;
-    }
-
 .latest-versions {
     display: flex;
     flex-flow: row wrap;
@@ -173,7 +187,6 @@ section h1 {
 }
 
     .latest-versions a {
-        color: #171717;
         text-decoration: none;
     }
 
@@ -202,10 +215,6 @@ section h1 {
     margin-bottom: .6rem;
 }
 
-    .overview-table tr {
-        background: #fff;
-    }
-
     .overview-table tbody tr {
         cursor: pointer;
     }
@@ -225,7 +234,6 @@ section h1 {
     }
 
     .overview-table a {
-        color: #000;
         text-decoration: none;
     }
 
@@ -348,32 +356,6 @@ section h1 {
         }
     }
 
-    .status-indicator.green {
-        background: #28a745;
-    }
-
-    .status-indicator.yellow {
-        background: #ffc107;
-    }
-
-    .status-indicator.orange {
-        background: #ed7b26;
-    }
-
-    .status-indicator.red {
-        background: #dc3545;
-    }
-
-    .status-indicator.border-black {
-        border: 0.05rem solid #000;
-        color: #000;
-    }
-
-    .status-indicator.border-red {
-        border: 0.05rem solid #dc3545;
-        color: #dc3545;
-    }
-
 /* Channel and Release page */
 ul.props-list {
     list-style-type: none;
@@ -384,7 +366,6 @@ ul.props-list {
 }
 
     ul.props-list > li {
-        background: #fff;
         padding: .6rem;
         margin: .3rem;
     }
@@ -440,7 +421,6 @@ section h2 {
 
 /* Long form text */
 .text {
-    background: #fff;
     overflow-wrap: break-word;
     word-break: break-word;
 }
@@ -451,7 +431,8 @@ section h2 {
 
     .text blockquote {
         padding-left: 1rem;
-        border-left: 4px solid #505050;
+        border-left-width: 4px;
+        border-left-style: solid; 
         margin-inline-start: 0;
         margin-inline-end: 0;
     }
@@ -466,12 +447,9 @@ section h2 {
         border-spacing: 0;
     }
 
-        .text table tr:nth-child(2n) {
-            background-color: #f6f8fa;
-        }
-
         .text table th, .text table td {
-            border: 1px solid #dfe2e5;
+            border-width: 1px;
+            border-style: solid;
             padding: .4rem .8rem;
         }
 
@@ -501,14 +479,12 @@ section h2 {
     }
 
         .downloads .files-list ul li {
-            background: #fff;
             margin: 0 .6rem .6rem 0;
             padding: .6rem;
         }
 
 /* Footer */
 body > footer {
-    color: #565656;
     font-size: .75rem;
     display: flex;
     flex-flow: row wrap;
@@ -519,10 +495,6 @@ body > footer {
 
     body > footer > span {
         margin: .2em .6em;
-    }
-
-    body > footer a {
-        color: #565656;
     }
 
 /* Error page */
