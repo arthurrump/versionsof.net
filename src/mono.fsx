@@ -60,12 +60,16 @@ let ghFileDecoder =
         get.Required.Field "download_url" Decode.string)
 
 let releasesGithubUrl config =
-    sprintf "https://api.github.com/repos/%s/contents/%s?client_id=%s&client_secret=%s"
-        config.MonoRepo config.MonoPath config.GitHubClientId config.GitHubClientSecret
+    sprintf "https://api.github.com/repos/%s/contents/%s"
+        config.MonoRepo config.MonoPath
 
-let tryGetReleaseUrls url = 
+let releasesGithubHeaders config =
+    let auth = sprintf "%s:%s" config.GitHubClientId config.GitHubClientSecret |> base64
+    [ ("Authorization", sprintf "Basic %s" auth) ]
+
+let tryGetReleaseUrls url headers = 
     async {
-        let! json = getJson url
+        let! json = getJsonH url headers
         return json 
         |> Result.bind (Decode.fromString (Decode.list ghFileDecoder))
         |> Result.map (List.filter (fun (file, _) -> file <> "index.md") >> List.map snd)
@@ -101,7 +105,7 @@ let tryGetReleasesFromUrls urls =
 
 let tryGetReleases config =
     async {
-        let! urls = tryGetReleaseUrls (releasesGithubUrl config)
+        let! urls = tryGetReleaseUrls (releasesGithubUrl config) (releasesGithubHeaders config)
         match urls with
         | Ok urls -> return! tryGetReleasesFromUrls urls
         | Error e -> return Error e

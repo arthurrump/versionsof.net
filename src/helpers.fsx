@@ -108,12 +108,14 @@ let parseConfig config =
 
 // Data dowloads
 ////////////////
-let download (accept : string) (url : string) =
+let download (accept : string) (headers : (string * string) list) (url : string) =
     async {
         use http = new HttpClient()
         use req = new HttpRequestMessage(HttpMethod.Get, url)
         req.Headers.Add("Accept", accept)
         req.Headers.Add("User-Agent", "Fake.StaticGen")
+        for (header, value) in headers do
+            req.Headers.Add(header, value)
         Trace.tracefn "Downloading %s" url
         let! resp = http.SendAsync req |> Async.AwaitTask
         if resp.IsSuccessStatusCode then
@@ -123,16 +125,23 @@ let download (accept : string) (url : string) =
             return Error (sprintf "Error fetching %s, response status %O" url resp.StatusCode)
     }
 
+let getJsonH url headers = 
+    download "application/json" headers url
+
 let getJson url =
-    download "application/json" url
+    getJsonH url []
 
 let rewriteGithubUrls (url : string) =
     if url.StartsWith("https://github.com") 
     then url.Replace("/blob/", "/raw/").Replace("/tree/", "/raw/")
     else url
 
-let downloadGh accept = rewriteGithubUrls >> download accept
+let downloadGh accept = rewriteGithubUrls >> download accept []
 let getJsonGh = rewriteGithubUrls >> getJson
+
+let base64 (str : string) =
+    let bytes = System.Text.Encoding.UTF8.GetBytes(str)
+    System.Convert.ToBase64String(bytes)
 
 // Template
 ///////////
