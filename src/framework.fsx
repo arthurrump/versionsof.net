@@ -14,7 +14,6 @@ open Fake.StaticGen
 open Fake.StaticGen.Html.ViewEngine
 
 open System
-open System.Text.RegularExpressions
 
 open FSharp.Data
 open FsToolkit.ErrorHandling.AsyncResultCEExtensions
@@ -44,7 +43,7 @@ type Release =
 let [<Literal>] msDocsUrl = "https://docs.microsoft.com/en-us/dotnet/framework/migration-guide/versions-and-dependencies"
 let [<Literal>] lifecycleUrl = """https://support.microsoft.com/api/lifecycle/GetProductsLifecycle?query={"names":[".NET%20Framework"],"years":"0","gdsId":0,"export":false}"""
 
-type MsDocs = HtmlProvider<msDocsUrl, IncludeLayoutTables = true>
+type MsDocs = HtmlProvider<msDocsUrl, Encoding = "UTF-8">
 type Lifecycle = JsonProvider<lifecycleUrl>
 
 let docsLinkToUrl (docUrl : string) (link : HtmlNode) =
@@ -79,84 +78,114 @@ let getReleaseNotesMarkdown (urlOption : string option) =
     | Some _ | None -> 
         async { return Ok None }
 
-let getVersionDocs (versionLinks : HtmlNode) = 
-    versionLinks.DirectInnerText().Split('\n').[0].Trim() |> Version.parse
-let getVersionLifecycle (name : string) =
+let getVersionFromName (name : string) =
     name.Replace("Microsoft", "")
         .Replace(".NET Framework", "")
         .Trim()
     |> Version.parse
 
-let rowToRelease (docsRow : HtmlNode) (lifecycle : Lifecycle.Root) =
+let getTitleDocs (elem : HtmlNode) =
+    elem.CssSelect("h3").[0].DirectInnerText()
+
+let rowToRelease (docsPart : HtmlNode) (lifecycle : Lifecycle.Root) =
     asyncResult {
-        match docsRow.CssSelect("td") with
-        | [ versionLinks; clrVersion; vsVersion; windowsVersions; serverVersions; _ ] ->
-            let links = versionLinks.CssSelect("a")
-            let features = links |> findLinkUrl "New features"
-            let accessibility = links |> findLinkUrl "New in accessibility"
-            let releaseNotes = links |> findLinkUrl "Release notes"
-            let! releaseNotesMarkdown = getReleaseNotesMarkdown releaseNotes
+        let! version = docsPart |> getTitleDocs |> getVersionFromName |> Result.ofOption "Couldn't parse Framework version."
+        let links = docsPart.CssSelect("a")
+        let features = links |> findLinkUrl "New features"
+        let accessibility = links |> findLinkUrl "New in accessibility"
+        let releaseNotes = links |> findLinkUrl "Release notes"
 
-            let! version = versionLinks |> getVersionDocs |> Result.ofOption "Couldn't parse Framework version."
-            let! clr = 
-                clrVersion.DirectInnerText() 
-                |> Version.parse 
-                |> Result.ofOption "Couldn't parse Framework CLR version."
+        let! releaseNotesMarkdown = getReleaseNotesMarkdown releaseNotes
 
-            let partitionVersions (versionsTd : HtmlNode) =
-                if versionsTd.InnerText().Trim() = "-" then
-                    [], []
-                else
-                    let versions = 
-                        versionsTd.InnerText().Split('\n')
-                        |> Array.map (fun s -> 
-                            s.Replace(",", "")
-                             .Replace("Windows Server", "")
-                             .Trim())
-                        |> Array.filter (not << String.IsNullOrEmpty)
-                        |> Array.toList
-                    let inst, incl = versions |> List.partition (fun s -> s.StartsWith("+") || s.EndsWith("*"))
-                    let inst = inst |> List.map (fun s -> s.Replace("*", "").Substring(if s.StartsWith("+") then 1 else 3).Trim())
-                    let incl = incl |> List.map (fun s -> s.Substring(3).Trim())
-                    inst, incl
-            
-            let instWindows, inclWindows = partitionVersions windowsVersions
-            let instServer, inclServer = partitionVersions serverVersions
-            let vsVersion = 
-                let v = vsVersion.InnerText()
+        let table =
+            docsPart.CssSelect("tbody tr")
+            |> List.map (fun elem -> 
+                let cells = elem.Elements()
+                (cells.[0].InnerText(), cells.[1].DirectInnerText()))
+            |> Map.ofList
+
+        let! clr = 
+            table 
+            |> Map.tryFind "CLR version"
+            |> Option.bind Version.parse 
+            |> Result.ofOption "Couldn't parse Framework CLR version."
+
+        let partitionVersions (text : string) =
+            if text.Trim() = "N/A" then
+                [], []
+            else
+                let versions = 
+                    text.Split('\n')
+                    |> Array.map (fun s -> 
+                        s.Replace(",", "")
+                         .Replace("Windows Server", "")
+                         .Trim())
+                    |> Array.filter (not << String.IsNullOrEmpty)
+                    |> Array.toList
+                let inst, incl = versions |> List.partition (fun s -> s.Contains("\u2795") || s.EndsWith("*"))
+                let inst = inst |> List.map (fun s -> s.Replace("*", "").Substring(1).Trim())
+                let incl = incl |> List.map (fun s -> s.Substring(1).Trim())
+                inst, incl
+        
+        let! instWindows, inclWindows = 
+            table 
+            |> Map.tryFind "Windows versions" 
+            |> Option.map partitionVersions
+            |> Result.ofOption "Couldn't read Windows versions"
+        let! instServer, inclServer = 
+            table
+            |> Map.tryFind "Windows Server versions"
+            |> Option.map partitionVersions
+            |> Result.ofOption "Couldn't read Windows Server versions"
+
+        let vsVersion = 
+            table 
+            |> Map.tryFind "Included in Visual Studio version"
+            |> Option.bind (fun v ->
                 if String.IsNullOrWhiteSpace v 
                 then None
-                else Some (v.Trim())
+                else Some (v.Trim()))
 
-            return 
-                { Version = version
-                  ReleaseDate = lifecycle.StartDate
-                  ClrVersion = clr
-                  IncludedInVisualStudio = vsVersion
-                  IncludedInWindows = inclWindows
-                  IncludedInServer = inclServer
-                  InstallableOnWindows = instWindows
-                  InstallableOnServer = instServer
-                  ReleaseNotes = releaseNotes |> Option.map (fun url -> { Link = url; Markdown = releaseNotesMarkdown })
-                  NewFeaturesLink = features
-                  NewAccessibilityLink = accessibility }
-        | _ -> return! Error "Unexpected amount of columns in Framework table."
+        return 
+            { Version = version
+              ReleaseDate = lifecycle.StartDate
+              ClrVersion = clr
+              IncludedInVisualStudio = vsVersion
+              IncludedInWindows = inclWindows
+              IncludedInServer = inclServer
+              InstallableOnWindows = instWindows
+              InstallableOnServer = instServer
+              ReleaseNotes = releaseNotes |> Option.map (fun url -> { Link = url; Markdown = releaseNotesMarkdown })
+              NewFeaturesLink = features
+              NewAccessibilityLink = accessibility }
     }
 
 let tryGetReleases () =
-    let nv = Option.map (Version.pad 3)
+    let nv = getVersionFromName >> Option.map (Version.pad 3)
+    let isFrameworkHeader (elem : HtmlNode) = elem.HasName("h3") && elem.AttributeValue("id").StartsWith("net-framework")
     async {
         let! msDocs = MsDocs.AsyncGetSample()
-        let docsTable = msDocs.Html.CssSelect("main#main table") |> List.head
-        let docsRows = docsTable.CssSelect("tbody tr")
+        let main = msDocs.Html.CssSelect("main").[0]
+        let docsParts = 
+            main.Elements() 
+            |> List.skipWhile (not << isFrameworkHeader)
+            |> List.fold (fun state elem -> 
+                if elem |> isFrameworkHeader || elem.HasName("h2")
+                then [elem]::state
+                else match state with head::tail -> (elem::head)::tail | state -> [elem]::state
+               ) []
+            |> List.filter (List.exists (isFrameworkHeader))
+            |> List.map (fun children -> HtmlNode.NewElement("div", children))
+            |> List.rev
         let! lifecycle = Lifecycle.AsyncGetSamples()
         return!
-            docsRows
-            |> List.map (fun dr ->
+            docsParts
+            |> List.map (fun dp ->
                 let lr = 
                     lifecycle
-                    |> Array.find (fun l -> nv (getVersionLifecycle l.Name) = nv (getVersionDocs (dr.CssSelect("td").[0])))
-                rowToRelease dr lr)
+                    |> Array.find (fun l -> nv l.Name = nv (getTitleDocs dp))
+                rowToRelease dp lr
+                |> Async.map (Result.mapError (sprintf "Error reading %s: %s" (getTitleDocs dp))))
             |> Async.Parallel
             |> Async.map (List.ofArray >> Result.allOk)
     }
@@ -283,6 +312,9 @@ let content = function
             ul [ _class "props-list" ] [
                 yield li [] [ strf "Released on %a" date rel.ReleaseDate ]
                 yield li [] [ strf "CLR Version %O" rel.ClrVersion ]
+                match rel.IncludedInVisualStudio with
+                | None -> ()
+                | Some vs -> yield li [] [ strf "Included in Visual Studio %s" (vs.Replace("Visual Studio", "").Trim()) ]
                 match rel.IncludedInWindows with
                 | [] -> ()
                 | ws -> yield li [] [ ws |> String.concat ", " |> strf "Included in Windows %s" ]
