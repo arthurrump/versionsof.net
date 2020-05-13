@@ -15,9 +15,9 @@ jobs:
     FAKE_DETAILED_ERRORS: 'true'
   steps:
   - task: UseDotNet@2
-    displayName: "Use .NET Core 2.2.x"
+    displayName: "Use .NET Core 3.1.x"
     inputs:
-      version: 2.2.x
+      version: 3.1.x
   - task: DotNetCoreCLI@2
     displayName: "Install FAKE"
     inputs:
