@@ -11,6 +11,8 @@ jobs:
   displayName: "Build site"
   pool:
     vmImage: "windows-2019"
+  variables:
+    FAKE_DETAILED_ERRORS: 'true'
   steps:
   - task: UseDotNet@2
     displayName: "Use .NET Core 2.2.x"
