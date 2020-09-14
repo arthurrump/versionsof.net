@@ -34,6 +34,20 @@ let private tryGetChannelsForIndex =
     List.map (fun i -> tryGetChannel i.ReleasesJson)
     >> Async.Parallel
     >> Async.map (List.ofArray >> Result.allOk)
+    // If there is no current, we want to make the latest LTS release "current-lts"
+    >> Async.map (Result.map (fun channels ->
+        if channels |> List.exists (fun ch -> ch.SupportPhase = "current") then
+            channels
+        else
+            let currentLts = 
+                channels 
+                |> List.filter (fun ch -> ch.SupportPhase = "lts")
+                |> List.maxBy (fun ch -> ch.ChannelVersion)
+            channels
+            |> List.filter ((<>) currentLts)
+            |> List.append [ { currentLts with SupportPhase = "current-lts" } ]
+            |> List.sortByDescending (fun ch -> ch.ChannelVersion)
+    ))
 
 let tryGetChannels indexUrl =
     async {
@@ -96,16 +110,16 @@ let releaseUrl ch rel = sprintf "/core/%O/%O/" ch.ChannelVersion rel.ReleaseVers
 let getInfo channels =
     let current = 
         channels 
-        |> List.tryFind (fun ch -> ch.SupportPhase = "current")
+        |> List.tryFind (fun ch -> ch.SupportPhase = "current" || ch.SupportPhase = "current-lts")
         |> Option.defaultWith (fun () ->
             channels
-            |> List.filter (fun ch -> ch.SupportPhase <> "preview")
+            |> List.filter (fun ch -> ch.SupportPhase <> "preview" && ch.SupportPhase <> "rc")
             |> List.maxBy (fun ch -> ch.ChannelVersion))
     { LatestRuntime = current.LatestRuntime
       LatestRuntimeUrl = releaseUrl current (getLatestRuntimeRel current)
       LatestSdk = current.LatestSdk
       LatestSdkUrl = releaseUrl current (getLatestSdkRel current)
-      PrimaryChannels = channels |> List.filter (fun ch -> ch.SupportPhase = "current" || ch.SupportPhase = "lts") }
+      PrimaryChannels = channels |> List.filter (fun ch -> [ "current"; "current-lts"; "lts"; "rc" ] |> List.contains ch.SupportPhase) }
 
 let channelsToPages channels releaseNotesMap =
     [ yield { Url = "/core/"; Content = ChannelsOverview (channels, getInfo channels) }
@@ -158,8 +172,10 @@ let private supportIndicator supportPhase =
     let indicator = indicatorSymb []
     match supportPhase with
     | "preview" ->     indicator "Preview" "border-black"
+    | "rc" ->          indicator "Release Candidate" "border-black"
     | "current" ->     indicator "Current" "green"
     | "lts" ->         indicator "Long Term Support" "yellow"
+    | "current-lts" -> indicator "Current (LTS)" "green"
     | "eol" ->         indicator "End of Life" "red"
     | "maintenance" -> indicator "Maintenance" "orange"
     | t -> indicatorSymb [ str "?" ] t "border-black"
