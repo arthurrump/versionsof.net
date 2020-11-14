@@ -326,6 +326,9 @@ let content = function
                 match rel.AspnetcoreRuntime with
                 | Some asp -> yield li [] [ strf "ASP.NET Runtime %O" asp.Version ]
                 | None -> ()
+                match rel.WindowsDesktop with
+                | Some win -> yield li [] [ strf "Windows Desktop Runtime %O" win.Version ]
+                | None -> ()
                 if rel.Security then yield li [] [ indicatorSymb [ str "!" ] "Security" "border-red" ]
             ]
             for sdk in allSdks rel do
@@ -333,6 +336,9 @@ let content = function
                     [ match sdk.VsVersion with 
                       | Some v -> yield li [] [ strf "Visual Studio %O" v ] 
                       | _ -> match sdk.VsSupport with Some v -> yield li [] [ str v ] | _ -> ()
+                      match sdk.VsMacVersion with
+                      | Some v -> yield li [] [ strf "Visual Studio for Mac %O" v ]
+                      | _ -> match sdk.VsMacSupport with Some v when String.isNotNullOrEmpty v -> yield li [] [ str v ] | _ -> ()
                       match sdk.CsharpVersion with Some v -> yield li [] [ strf "C# %O" v ] | _ -> ()
                       match sdk.FsharpVersion with Some v -> yield li [] [ strf "F# %O" v ] | _ -> ()
                       match sdk.VbVersion with Some v -> yield li [] [ strf "VB %O" v ] | _ -> () ]
@@ -382,6 +388,9 @@ let content = function
                     | Some symb -> 
                         if (not << List.isEmpty) symb.Files then 
                             yield filesList "Symbols" symb.Files
+                    | None -> ()
+                    match rel.WindowsDesktop with
+                    | Some win -> yield filesList "Windows Desktop Runtime" win.Files
                     | None -> ()
                 ]
             ]

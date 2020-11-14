@@ -81,7 +81,7 @@ NUGET
       Markdig (>= 0.16)
     Microsoft.NETCore.Platforms (3.1.1)
     Microsoft.NETCore.Targets (3.1)
-    NetCoreVersions (2.1.10)
+    NetCoreVersions (2.2.3)
       FSharp.Core (>= 4.6.2)
       Thoth.Json.Net (>= 3.5.1)
     NETStandard.Library (2.0.3)
