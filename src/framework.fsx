@@ -41,10 +41,10 @@ type Release =
       NewAccessibilityLink : Url option }
 
 let [<Literal>] msDocsUrl = "https://docs.microsoft.com/en-us/dotnet/framework/migration-guide/versions-and-dependencies"
-let [<Literal>] lifecycleUrl = """https://support.microsoft.com/api/lifecycle/GetProductsLifecycle?query={"names":[".NET%20Framework"],"years":"0","gdsId":0,"export":false}"""
+let [<Literal>] lifecycleUrl = "https://docs.microsoft.com/en-us/lifecycle/products/microsoft-net-framework"
 
 type MsDocs = HtmlProvider<msDocsUrl, Encoding = "UTF-8">
-type Lifecycle = JsonProvider<lifecycleUrl>
+type Lifecycle = HtmlProvider<lifecycleUrl, Encoding = "UTF-8">
 
 let docsLinkToUrl (docUrl : string) (link : HtmlNode) =
     let rec combineUrl (baseUrl : string) (suffix : string) =
@@ -87,7 +87,7 @@ let getVersionFromName (name : string) =
 let getTitleDocs (elem : HtmlNode) =
     elem.CssSelect("h3").[0].DirectInnerText()
 
-let rowToRelease (docsPart : HtmlNode) (lifecycle : Lifecycle.Root) =
+let rowToRelease (docsPart : HtmlNode) (releaseDate : DateTime) =
     asyncResult {
         let! version = docsPart |> getTitleDocs |> getVersionFromName |> Result.ofOption "Couldn't parse Framework version."
         let links = docsPart.CssSelect("a")
@@ -148,7 +148,7 @@ let rowToRelease (docsPart : HtmlNode) (lifecycle : Lifecycle.Root) =
 
         return 
             { Version = version
-              ReleaseDate = lifecycle.StartDate
+              ReleaseDate = releaseDate
               ClrVersion = clr
               IncludedInVisualStudio = vsVersion
               IncludedInWindows = inclWindows
@@ -160,8 +160,29 @@ let rowToRelease (docsPart : HtmlNode) (lifecycle : Lifecycle.Root) =
               NewAccessibilityLink = accessibility }
     }
 
+let nv = getVersionFromName >> Option.map (Version.pad 3)
+// As last seen on https://support.microsoft.com/api/lifecycle/GetProductsLifecycle?query={"names":[".NET%20Framework"],"years":"0","gdsId":0,"export":false}
+let releaseDates =
+    [ ".NET Framework 4.8", DateTime(2019, 04, 18)
+      ".NET Framework 4.7.2", DateTime(2018, 04, 30)
+      ".NET Framework 4.7.1", DateTime(2017, 10, 17)
+      ".NET Framework 4.7", DateTime(2017, 04, 11)
+      ".NET Framework 4.6.2", DateTime(2016, 08, 02)
+      ".NET Framework 4.6.1", DateTime(2015, 11, 30)
+      ".NET Framework 4.6", DateTime(2015, 07, 29)
+      ".NET Framework 4.5.2", DateTime(2014, 05, 05)
+      ".NET Framework 4.5.1", DateTime(2014, 01, 15)
+      ".NET Framework 4.5", DateTime(2012, 10, 09)
+      ".NET Framework 4", DateTime(2010, 03, 31)
+      ".NET Framework 3.5", DateTime(2007, 11, 19)
+      ".NET Framework 3.0", DateTime(2006, 11, 21)
+      ".NET Framework 2.0", DateTime(2006, 02, 17)
+      ".NET Framework 1.1", DateTime(2003, 07, 10)
+      ".NET Framework 1.0", DateTime(2002, 04, 15) ]
+    |> List.map (fun (k, v) -> (nv k, v))
+    |> Map.ofList
+
 let tryGetReleases () =
-    let nv = getVersionFromName >> Option.map (Version.pad 3)
     let isFrameworkHeader (elem : HtmlNode) = elem.HasName("h3") && elem.AttributeValue("id").StartsWith("net-framework")
     async {
         let! msDocs = MsDocs.AsyncGetSample()
@@ -177,14 +198,14 @@ let tryGetReleases () =
             |> List.filter (List.exists (isFrameworkHeader))
             |> List.map (fun children -> HtmlNode.NewElement("div", children))
             |> List.rev
-        let! lifecycle = Lifecycle.AsyncGetSamples()
+        let! lifecycle = Lifecycle.AsyncGetSample()
+        let newReleaseDates = lifecycle.Tables.Releases.Rows |> Array.map (fun r -> nv r.Version, r.``Start Date``) |> Map.ofArray
         return!
             docsParts
             |> List.map (fun dp ->
-                let lr = 
-                    lifecycle
-                    |> Array.find (fun l -> nv l.Name = nv (getTitleDocs dp))
-                rowToRelease dp lr
+                let version = nv (getTitleDocs dp)
+                let relDate = Map.tryFind version newReleaseDates |> Option.defaultValue (Map.find version releaseDates)
+                rowToRelease dp relDate
                 |> Async.map (Result.mapError (sprintf "Error reading %s: %s" (getTitleDocs dp))))
             |> Async.Parallel
             |> Async.map (List.ofArray >> Result.allOk)
