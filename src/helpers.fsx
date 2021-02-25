@@ -132,8 +132,11 @@ let getJson url =
     getJsonH url []
 
 let rewriteGithubUrls (url : string) =
-    if url.StartsWith("https://github.com") 
-    then url.Replace("/blob/", "/raw/").Replace("/tree/", "/raw/")
+    if url.StartsWith("https://github.com") then 
+        url.Replace("https://github.com", "https://raw.githubusercontent.com")
+           .Replace("/blob/", "/")
+           .Replace("/tree/", "/")
+           .Replace("/raw/", "/")
     else url
 
 let downloadGh accept = rewriteGithubUrls >> download accept []
