@@ -3,6 +3,7 @@ nuget Fake.Core.Target
 nuget Fake.StaticGen
 nuget Fake.StaticGen.Html
 nuget Fake.StaticGen.Markdown
+nuget Markdig 0.20
 nuget MarkdigExtensions.SyntaxHighlighting
 nuget MarkdigExtensions.UrlRewriter
 nuget Nett

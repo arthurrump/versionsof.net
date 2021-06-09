@@ -334,8 +334,8 @@ let content = function
             for sdk in allSdks rel do
                 let props = 
                     [ match sdk.VsVersion with 
-                      | Some v -> yield li [] [ strf "Visual Studio %O" v ] 
-                      | _ -> match sdk.VsSupport with Some v -> yield li [] [ str v ] | _ -> ()
+                      | [] -> match sdk.VsSupport with Some v -> yield li [] [ str v ] | _ -> ()
+                      | vs -> for v in vs -> li [] [ strf "Visual Studio %O" v ] 
                       match sdk.VsMacVersion with
                       | Some v -> yield li [] [ strf "Visual Studio for Mac %O" v ]
                       | _ -> match sdk.VsMacSupport with Some v when String.isNotNullOrEmpty v -> yield li [] [ str v ] | _ -> ()

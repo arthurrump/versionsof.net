@@ -18,7 +18,7 @@ open Fake.StaticGen.Markdown
 open System.IO
 open System.Text
 
-open FsToolkit.ErrorHandling.AsyncResultCEExtensions
+open FsToolkit.ErrorHandling
 open Markdig
 
 #load "helpers.fsx"

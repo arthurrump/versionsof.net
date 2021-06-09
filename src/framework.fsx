@@ -16,7 +16,7 @@ open Fake.StaticGen.Html.ViewEngine
 open System
 
 open FSharp.Data
-open FsToolkit.ErrorHandling.AsyncResultCEExtensions
+open FsToolkit.ErrorHandling
 open Markdig
 open NetCore.Versions
 open NetCore.Versions.Data

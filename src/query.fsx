@@ -30,7 +30,7 @@ module Core =
           ReleaseLink : string // channel/release
           ReleaseDate : DateTime
           RuntimeVersion : Version option
-          VsVersion : Version option
+          VsVersion : Version list
           CsharpVersion : Version option
           FsharpVersion : Version option
           VbVersion : Version option }
@@ -41,7 +41,7 @@ module Core =
                 yield "release", Encode.string sdk.ReleaseLink
                 yield "date", Encode.datetime sdk.ReleaseDate
                 match sdk.RuntimeVersion with Some rt -> yield "runtime", Encode.string (string rt) | _ -> ()
-                match sdk.VsVersion with Some rt -> yield "vs", Encode.string (string rt) | _ -> ()
+                yield "vs", Encode.list (sdk.VsVersion |> List.map (string >> Encode.string))
                 match sdk.CsharpVersion with Some rt -> yield "csharp", Encode.string (string rt) | _ -> ()
                 match sdk.FsharpVersion with Some rt -> yield "fsharp", Encode.string (string rt) | _ -> ()
                 match sdk.VbVersion with Some rt -> yield "vb", Encode.string (string rt) | _ -> ()
@@ -53,7 +53,7 @@ module Core =
                   ReleaseLink = get.Required.Field "release" Decode.string
                   ReleaseDate = get.Required.Field "date" Decode.datetime
                   RuntimeVersion = get.Optional.Field "runtime" Decode.version
-                  VsVersion = get.Optional.Field "vs" Decode.version
+                  VsVersion = get.Required.Field "vs" (Decode.list Decode.version)
                   CsharpVersion = get.Optional.Field "csharp" Decode.version
                   FsharpVersion = get.Optional.Field "fsharp" Decode.version
                   VbVersion = get.Optional.Field "vb" Decode.version })
