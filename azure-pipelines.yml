@@ -35,7 +35,7 @@ jobs:
   condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/master'))
   displayName: "Netlify Deploy"
   pool:
-    vmImage: "ubuntu-16.04"
+    vmImage: "ubuntu-latest"
   environment: netlify-prod
   dependsOn: [ build ]
   strategy:
