@@ -40,8 +40,8 @@ type Release =
       NewFeaturesLink : Url option
       NewAccessibilityLink : Url option }
 
-let [<Literal>] msDocsUrl = "https://docs.microsoft.com/en-us/dotnet/framework/migration-guide/versions-and-dependencies"
-let [<Literal>] lifecycleUrl = "https://docs.microsoft.com/en-us/lifecycle/products/microsoft-net-framework"
+let [<Literal>] msDocsUrl = "https://docs.microsoft.com/dotnet/framework/migration-guide/versions-and-dependencies"
+let [<Literal>] lifecycleUrl = "https://docs.microsoft.com/lifecycle/products/microsoft-net-framework"
 
 type MsDocs = HtmlProvider<msDocsUrl, Encoding = "UTF-8">
 type Lifecycle = HtmlProvider<lifecycleUrl, Encoding = "UTF-8">
