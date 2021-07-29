@@ -208,6 +208,7 @@ let template (site : StaticSite<Config, Page>) page =
                 ]
             ]
             footer [] [
+                span [] [ a [ _href "https://sitesof.net" ] [ str "Other sites of .NET" ] ]
                 span [] [ a [ _href "https://github.com/arthurrump/versionsof.net" ] [ str "View on GitHub" ] ]
                 span [] [ a [ _href "https://github.com/arthurrump/Fake.StaticGen" ] [ str "Generated with Fake.StaticGen" ] ]
                 span [] [ a [ _href "https://arthurrump.com" ] [ str "Created by Arthur Rump" ] ]
