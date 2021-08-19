@@ -30,13 +30,13 @@ jobs:
     inputs:
       command: 'custom'
       custom: 'fake'
-      arguments: '-t configure -- $(GitHub.ClientId) $(GitHub.ClientSecret)'
+      arguments: 'build -t configure -- $(GitHub.ClientId) $(GitHub.ClientSecret)'
   - task: DotNetCoreCLI@2
     displayName: "Generate site"
     inputs:
       command: 'custom'
       custom: 'fake'
-      arguments: '-t generate'
+      arguments: 'build -t generate'
   - publish: $(Build.SourcesDirectory)/public
     artifact: public
 
