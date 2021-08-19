@@ -10,6 +10,7 @@ module Framework
 open Helpers
 
 open Fake.Core
+open Fake.IO
 open Fake.StaticGen
 open Fake.StaticGen.Html.ViewEngine
 
@@ -62,6 +63,8 @@ let docsLinkToUrl (docUrl : string) (link : HtmlNode) =
             return combineUrl docUrl url
         | "external" -> 
             return url
+        | "absolute-path" ->
+            return Uri(Uri(Uri(docUrl).GetLeftPart(UriPartial.Authority)), url).ToString()
         | other ->
             Trace.traceImportantfn "Framework: Unknown linktype attribute '%s' on %s" other url
             return! None
