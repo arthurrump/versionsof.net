@@ -23,7 +23,8 @@ jobs:
     displayName: "Install tools"
     inputs:
       command: 'custom'
-      custom: 'tool restore'
+      custom: 'tool'
+      arguments: 'restore'
   - task: DotNetCoreCLI@2
     displayName: "Configure secrets"
     inputs:
