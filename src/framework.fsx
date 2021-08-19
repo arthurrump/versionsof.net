@@ -63,7 +63,7 @@ let docsLinkToUrl (docUrl : string) (link : HtmlNode) =
         | "external" -> 
             return url
         | other ->
-            Trace.traceImportantfn "Framework: Unknown linktype attribute '%s'" other
+            Trace.traceImportantfn "Framework: Unknown linktype attribute '%s' on %s" other url
             return! None
     }
 
