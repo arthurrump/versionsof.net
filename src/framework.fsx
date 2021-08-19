@@ -106,7 +106,7 @@ let rowToRelease (docsPart : HtmlNode) (releaseDate : DateTime) =
 
         let! clr = 
             table 
-            |> Map.tryFind "CLR version"
+            |> Map.tryFind "CLR"
             |> Option.bind Version.parse 
             |> Result.ofOption "Couldn't parse Framework CLR version."
 
@@ -129,12 +129,12 @@ let rowToRelease (docsPart : HtmlNode) (releaseDate : DateTime) =
         
         let! instWindows, inclWindows = 
             table 
-            |> Map.tryFind "Windows versions" 
+            |> Map.tryFind "Windows" 
             |> Option.map partitionVersions
             |> Result.ofOption "Couldn't read Windows versions"
         let! instServer, inclServer = 
             table
-            |> Map.tryFind "Windows Server versions"
+            |> Map.tryFind "Windows Server"
             |> Option.map partitionVersions
             |> Result.ofOption "Couldn't read Windows Server versions"
 
