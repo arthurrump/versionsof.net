@@ -15,19 +15,27 @@ jobs:
     FAKE_DETAILED_ERRORS: 'true'
   steps:
   - task: UseDotNet@2
-    displayName: "Use .NET Core 3.1.x"
+    displayName: "Use .NET"
     inputs:
-      version: 3.1.x
+      packageType: 'sdk'
+      useGlobalJson: true
   - task: DotNetCoreCLI@2
-    displayName: "Install FAKE"
+    displayName: "Install tools"
     inputs:
-      command: custom
-      custom: tool
-      arguments: install fake-cli --tool-path .fake --version 5.19.1
-  - script: .\.fake\fake.exe build -t configure -- $(GitHub.ClientId) $(GitHub.ClientSecret)
-    displayName: "FAKE Configure"
-  - script: .\.fake\fake.exe build -t generate
-    displayName: "FAKE Generate"
+      command: 'custom'
+      custom: 'tool restore'
+  - task: DotNetCoreCLI@2
+    displayName: "Configure secrets"
+    inputs:
+      command: 'custom'
+      custom: 'fake'
+      arguments: '-t configure -- $(GitHub.ClientId) $(GitHub.ClientSecret)'
+  - task: DotNetCoreCLI@2
+    displayName: "Generate site"
+    inputs:
+      command: 'custom'
+      custom: 'fake'
+      arguments: '-t generate'
   - publish: $(Build.SourcesDirectory)/public
     artifact: public
 
