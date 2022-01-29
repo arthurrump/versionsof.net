@@ -189,7 +189,7 @@ let tryGetReleases () =
     let isFrameworkHeader (elem : HtmlNode) = elem.HasName("h3") && elem.AttributeValue("id").StartsWith("net-framework")
     async {
         let! msDocs = MsDocs.AsyncGetSample()
-        let main = msDocs.Html.CssSelect("main").[0]
+        let main = msDocs.Html.CssSelect("main .content").[0]
         let docsParts = 
             main.Elements() 
             |> List.skipWhile (not << isFrameworkHeader)
