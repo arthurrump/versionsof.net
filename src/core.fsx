@@ -109,12 +109,9 @@ let releaseUrl ch rel = sprintf "/core/%O/%O/" ch.ChannelVersion rel.ReleaseVers
 
 let getInfo channels =
     let current = 
-        channels 
-        |> List.tryFind (fun ch -> ch.SupportPhase = "current" || ch.SupportPhase = "current-lts")
-        |> Option.defaultWith (fun () ->
-            channels
-            |> List.filter (fun ch -> ch.SupportPhase <> "preview" && ch.SupportPhase <> "rc")
-            |> List.maxBy (fun ch -> ch.ChannelVersion))
+        channels
+        |> List.filter (fun ch -> ch.SupportPhase <> "preview" && ch.SupportPhase <> "rc")
+        |> List.maxBy (fun ch -> ch.ChannelVersion)
     { LatestRuntime = current.LatestRuntime
       LatestRuntimeUrl = releaseUrl current (getLatestRuntimeRel current)
       LatestSdk = current.LatestSdk
