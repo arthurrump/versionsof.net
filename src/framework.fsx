@@ -202,7 +202,7 @@ let tryGetReleases () =
             |> List.map (fun children -> HtmlNode.NewElement("div", children))
             |> List.rev
         let! lifecycle = Lifecycle.AsyncGetSample()
-        let newReleaseDates = lifecycle.Tables.Releases.Rows |> Array.map (fun r -> nv r.Version, r.``Start Date``) |> Map.ofArray
+        let newReleaseDates = lifecycle.Tables.Releases.Rows |> Array.map (fun r -> nv r.Version, r.``Start Date``.DateTime) |> Map.ofArray
         return!
             docsParts
             |> List.map (fun dp ->
