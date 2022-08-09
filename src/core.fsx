@@ -116,7 +116,7 @@ let getInfo channels =
       LatestRuntimeUrl = releaseUrl current (getLatestRuntimeRel current)
       LatestSdk = current.LatestSdk
       LatestSdkUrl = releaseUrl current (getLatestSdkRel current)
-      PrimaryChannels = channels |> List.filter (fun ch -> [ "current"; "current-lts"; "lts"; "rc" ] |> List.contains ch.SupportPhase) }
+      PrimaryChannels = channels |> List.filter (fun ch -> [ "current"; "current-lts"; "lts"; "rc"; "maintenance" ] |> List.contains ch.SupportPhase) }
 
 let channelsToPages channels releaseNotesMap =
     [ yield { Url = "/core/"; Content = ChannelsOverview (channels, getInfo channels) }
