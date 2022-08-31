@@ -166,7 +166,8 @@ let rowToRelease (docsPart : HtmlNode) (releaseDate : DateTime) =
 let nv = getVersionFromName >> Option.map (Version.pad 3)
 // As last seen on https://support.microsoft.com/api/lifecycle/GetProductsLifecycle?query={"names":[".NET%20Framework"],"years":"0","gdsId":0,"export":false}
 let releaseDates =
-    [ ".NET Framework 4.8", DateTime(2019, 04, 18)
+    [ ".NET Framework 4.8.1", DateTime(2022, 08, 09)
+      ".NET Framework 4.8", DateTime(2019, 04, 18)
       ".NET Framework 4.7.2", DateTime(2018, 04, 30)
       ".NET Framework 4.7.1", DateTime(2017, 10, 17)
       ".NET Framework 4.7", DateTime(2017, 04, 11)
