@@ -1,12 +1,5 @@
 module Helpers
 
-#load "../.fake/build.fsx/intellisense.fsx"
-#if !FAKE
-    #r "Facades/netstandard" // Intellisense fix, see FAKE #1938
-    #r "netstandard"
-    #r "System.Net.Http"
-#endif
-
 open Fake.Core
 open Fake.StaticGen
 open Fake.StaticGen.Html.ViewEngine
@@ -69,7 +62,7 @@ module Page =
     let mapl f = List.map (map f)
 
 module DateTime =
-    let tryParse text =
+    let tryParse (text: string) =
         match DateTime.TryParse text with
         | (true, dt) -> Some dt
         | (false, _) -> None

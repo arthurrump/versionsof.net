@@ -1,11 +1,5 @@
 module Site
 
-#load "../.fake/build.fsx/intellisense.fsx"
-#if !FAKE
-    #r "Facades/netstandard" // Intellisense fix, see FAKE #1938
-    #r "netstandard"
-#endif
-
 open Fake.Core
 open Fake.IO
 open Fake.IO.Globbing.Operators
@@ -21,13 +15,7 @@ open System.Text
 open FsToolkit.ErrorHandling
 open Markdig
 
-#load "helpers.fsx"
 open Helpers
-
-#load "core.fsx"
-#load "framework.fsx"
-#load "mono.fsx"
-#load "query.fsx"
 
 // Site structure and page creation
 ///////////////////////////////////

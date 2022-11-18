@@ -20,23 +20,15 @@ jobs:
       packageType: 'sdk'
       useGlobalJson: true
   - task: DotNetCoreCLI@2
-    displayName: "Install tools"
-    inputs:
-      command: 'custom'
-      custom: 'tool'
-      arguments: 'restore'
-  - task: DotNetCoreCLI@2
     displayName: "Configure secrets"
     inputs:
-      command: 'custom'
-      custom: 'fake'
-      arguments: 'build -t configure -- $(GitHub.ClientId) $(GitHub.ClientSecret)'
+      command: 'run'
+      arguments: '-- -t configure -- $(GitHub.ClientId) $(GitHub.ClientSecret)'
   - task: DotNetCoreCLI@2
     displayName: "Generate site"
     inputs:
-      command: 'custom'
-      custom: 'fake'
-      arguments: 'build -t generate'
+      command: 'run'
+      arguments: '-- -t generate'
   - publish: $(Build.SourcesDirectory)/public
     artifact: public
 

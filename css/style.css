@@ -371,7 +371,7 @@ section h1 {
     align-self: center;
     height: 1rem;
     width: 1rem;
-    border-radius: 100%;
+    border-radius: 1rem;
     border: none;
     box-sizing: border-box;
     margin-right: 0.5rem;
@@ -387,6 +387,10 @@ section h1 {
             margin-right: 0;
             margin-left: 0.5rem;
         }
+    }
+
+    .status-indicator.long {
+        width: 2rem;
     }
 
 /* Channel and Release page */

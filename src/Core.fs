@@ -1,12 +1,5 @@
 module Core
 
-#load "../.fake/build.fsx/intellisense.fsx"
-#if !FAKE
-    #r "Facades/netstandard" // Intellisense fix, see FAKE #1938
-    #r "netstandard"
-#endif
-
-#load "helpers.fsx"
 open Helpers
 
 open Fake.Core

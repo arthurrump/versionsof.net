@@ -1,17 +1,6 @@
 module Query
 
-#load "../.fake/build.fsx/intellisense.fsx"
-#if !FAKE
-    #r "Facades/netstandard" // Intellisense fix, see FAKE #1938
-    #r "netstandard"
-#endif
-
-#load "helpers.fsx"
 open Helpers
-
-#load "core.fsx"
-#load "framework.fsx"
-#load "mono.fsx"
 
 open Fake.StaticGen
 
