@@ -158,17 +158,21 @@ let description = function
         sprintf "Release %O of .NET Core, released on %a. " 
             rel.Release.ReleaseVersion date rel.Release.ReleaseDate
 
-let private supportIndicator supportPhase =
-    let indicator = indicatorSymb []
-    match supportPhase with
-    | "preview" ->     indicator "Preview" "border-black"
-    | "rc" ->          indicator "Release Candidate" "border-black"
-    | "current" ->     indicator "Current" "green"
-    | "lts" ->         indicator "Long Term Support" "yellow"
-    | "current-lts" -> indicator "Current (LTS)" "green"
-    | "eol" ->         indicator "End of Life" "red"
-    | "maintenance" -> indicator "Maintenance" "orange"
-    | t -> indicatorSymb [ str "?" ] t "border-black"
+let private supportIndicator releaseType supportPhase =
+    let symbol, name, clas =
+        match supportPhase with
+        | "preview" ->     [], "Preview", "border-black"
+        | "rc" ->          [], "Release Candidate", "border-black"
+        | "active" ->      [], "Active", "green"
+        | "maintenance" -> [], "Maintenance", "yellow"
+        | "eol" ->         [], "End of Life", "red"
+        | t -> [ str "?" ], t, "border-black"
+    let name, clas =
+        match releaseType with
+        | "lts" -> name + " (LTS)", clas + " long"
+        | "sts" -> name, clas
+        | _ -> name, clas
+    indicatorSymb symbol name clas
 
 let private channelsTable channels =
     div [ _class "table-wrapper" ] [
@@ -183,7 +187,7 @@ let private channelsTable channels =
             tbody [] [
                 for ch in channels -> tr [ _onclick (sprintf "location.pathname = '%s';" (channelUrl ch)) ] [ 
                     td [ _class "title" ] [ a [ _href (channelUrl ch) ] [ strf "%O" ch.ChannelVersion ] ]
-                    td [ _class "support" ] [ supportIndicator ch.SupportPhase ]
+                    td [ _class "support" ] [ supportIndicator ch.ReleaseType ch.SupportPhase ]
                     td [ _class "latest-rel" ] [ 
                         span [ _class "label" ] [ str "Latest release: " ]
                         strf "%O" ch.LatestRelease 
@@ -242,7 +246,7 @@ let content = function
         div [ _class "inner-container" ] [
             h1 [ _class "inner-spaced" ] [ strf "Channel %O" channel.ChannelVersion ]
             ul [ _class "props-list" ] [
-                yield li [] [ supportIndicator channel.SupportPhase ]
+                yield li [] [ supportIndicator channel.ReleaseType channel.SupportPhase ]
                 match channel.EolDate with 
                 | Some eol -> yield li [] [ strf "End of Life on %a" date eol ]
                 | None -> ()
