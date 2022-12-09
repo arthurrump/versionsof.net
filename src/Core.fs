@@ -27,20 +27,6 @@ let private tryGetChannelsForIndex =
     List.map (fun i -> tryGetChannel i.ReleasesJson)
     >> Async.Parallel
     >> Async.map (List.ofArray >> Result.allOk)
-    // If there is no current, we want to make the latest LTS release "current-lts"
-    >> Async.map (Result.map (fun channels ->
-        if channels |> List.exists (fun ch -> ch.SupportPhase = "current") then
-            channels
-        else
-            let currentLts = 
-                channels 
-                |> List.filter (fun ch -> ch.SupportPhase = "lts")
-                |> List.maxBy (fun ch -> ch.ChannelVersion)
-            channels
-            |> List.filter ((<>) currentLts)
-            |> List.append [ { currentLts with SupportPhase = "current-lts" } ]
-            |> List.sortByDescending (fun ch -> ch.ChannelVersion)
-    ))
 
 let tryGetChannels indexUrl =
     async {
@@ -109,7 +95,7 @@ let getInfo channels =
       LatestRuntimeUrl = releaseUrl current (getLatestRuntimeRel current)
       LatestSdk = current.LatestSdk
       LatestSdkUrl = releaseUrl current (getLatestSdkRel current)
-      PrimaryChannels = channels |> List.filter (fun ch -> [ "current"; "current-lts"; "lts"; "rc"; "maintenance" ] |> List.contains ch.SupportPhase) }
+      PrimaryChannels = channels |> List.filter (fun ch -> [ "rc"; "active"; "maintenance" ] |> List.contains ch.SupportPhase) }
 
 let channelsToPages channels releaseNotesMap =
     [ yield { Url = "/core/"; Content = ChannelsOverview (channels, getInfo channels) }
