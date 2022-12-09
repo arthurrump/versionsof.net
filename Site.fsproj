@@ -25,7 +25,7 @@
     <PackageReference Include="Markdig" Version="0.20" />
     <PackageReference Include="MarkdigExtensions.SyntaxHighlighting" Version="1.0.3" />
     <PackageReference Include="MarkdigExtensions.UrlRewriter" Version="1.0.0" />
-    <PackageReference Include="NetCoreVersions" Version="2.4.2" />
+    <PackageReference Include="NetCoreVersions" Version="3.0.0" />
     <PackageReference Include="Nett" Version="0.15.0" />
     <PackageReference Include="YamlDotNet" Version="12.0.2" />
   </ItemGroup>
