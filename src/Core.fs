@@ -26,7 +26,7 @@ let private tryGetChannel url =
 let private tryGetChannelsForIndex = 
     List.map (fun i -> tryGetChannel i.ReleasesJson)
     >> Async.Parallel
-    >> Async.map (List.ofArray >> Result.allOk)
+    >> Async.map (List.ofArray >> Result.allOk >> Result.map (List.sortByDescending (fun ch -> ch.ChannelVersion)))
 
 let tryGetChannels indexUrl =
     async {
