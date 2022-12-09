@@ -89,13 +89,13 @@ let releaseUrl ch rel = sprintf "/core/%O/%O/" ch.ChannelVersion rel.ReleaseVers
 let getInfo channels =
     let current = 
         channels
-        |> List.filter (fun ch -> ch.SupportPhase <> "preview" && ch.SupportPhase <> "rc")
+        |> List.filter (fun ch -> ch.SupportPhase = "active")
         |> List.maxBy (fun ch -> ch.ChannelVersion)
     { LatestRuntime = current.LatestRuntime
       LatestRuntimeUrl = releaseUrl current (getLatestRuntimeRel current)
       LatestSdk = current.LatestSdk
       LatestSdkUrl = releaseUrl current (getLatestSdkRel current)
-      PrimaryChannels = channels |> List.filter (fun ch -> [ "rc"; "active"; "maintenance" ] |> List.contains ch.SupportPhase) }
+      PrimaryChannels = channels |> List.filter (fun ch -> [ "go-live"; "active"; "maintenance" ] |> List.contains ch.SupportPhase) }
 
 let channelsToPages channels releaseNotesMap =
     [ yield { Url = "/core/"; Content = ChannelsOverview (channels, getInfo channels) }
@@ -147,11 +147,11 @@ let description = function
 let private supportIndicator releaseType supportPhase =
     let symbol, name, clas =
         match supportPhase with
-        | "preview" ->     [], "Preview", "border-black"
-        | "rc" ->          [], "Release Candidate", "border-black"
-        | "active" ->      [], "Active", "green"
+        | "preview" -> [], "Preview", "border-black"
+        | "rc" | "go-live" -> [ str ">" ], "Preview / Go Live", "border-black"
+        | "active" ->  [], "Active", "green"
         | "maintenance" -> [], "Maintenance", "yellow"
-        | "eol" ->         [], "End of Life", "red"
+        | "eol" -> [], "End of Life", "red"
         | t -> [ str "?" ], t, "border-black"
     let name, clas =
         match releaseType with
