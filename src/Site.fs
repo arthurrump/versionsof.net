@@ -110,22 +110,6 @@ let template (site : StaticSite<Config, Page>) page =
                 span [ _class "status-text" ] [ str text ]
             ]
 
-    let matomo =
-        rawText """<script type="text/javascript">
-  var _paq = window._paq || [];
-  /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
-  _paq.push(["disableCookies"]);
-  _paq.push(['trackPageView']);
-  _paq.push(['enableLinkTracking']);
-  (function() {
-    var u="//analytics.arthurrump.com/";
-    _paq.push(['setTrackerUrl', u+'matomo.php']);
-    _paq.push(['setSiteId', '4']);
-    var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
-    g.type='text/javascript'; g.async=true; g.defer=true; g.src=u+'matomo.js'; s.parentNode.insertBefore(g,s);
-  })();
-</script>"""
-
     let iconList = set [ "md-close"; "md-menu" ]
     let icon name = 
         XmlEngine.tag "svg" [ _class "icon"; _ariaHidden "true" ] [ 
@@ -165,7 +149,6 @@ let template (site : StaticSite<Config, Page>) page =
             meta [ _property "og:type"; _content "website" ]
             meta [ _property "og:description"; _content (description + site.Config.Description) ]
             meta [ _property "og:image"; _content (site.AbsoluteUrl "/logo.png") ]
-            matomo
         ]
         body [ ] [
             iconsCombined 
