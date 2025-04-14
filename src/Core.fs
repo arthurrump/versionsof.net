@@ -58,16 +58,24 @@ let allSdks rel = rel.Sdk :: rel.Sdks |> List.distinct
 
 let getLatestRuntimeRel channel = 
     channel.Releases 
-    |> List.find (fun rel -> 
+    |> List.tryFind (fun rel -> 
         rel.Runtime 
         |> Option.map (fun rt -> rt.Version = channel.LatestRuntime) 
         |> Option.defaultValue false)
+    |> Option.defaultValue (
+        channel.Releases
+        |> List.filter _.Runtime.IsSome
+        |> List.maxBy _.Runtime.Value.Version)
 
 let getLatestSdkRel channel = 
     channel.Releases 
-    |> List.find (fun rel -> 
+    |> List.tryFind (fun rel -> 
         allSdks rel 
         |> List.exists (fun sdk -> sdk.Version = channel.LatestSdk))
+    |> Option.defaultValue (
+        channel.Releases
+        |> List.filter (fun rel -> allSdks rel <> [])
+        |> List.maxBy (allSdks >> List.map _.Version >> List.max))
 
 // Pages
 ////////
