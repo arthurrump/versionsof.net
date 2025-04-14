@@ -180,12 +180,17 @@ let releaseDates =
     |> Map.ofList
 
 let tryGetReleases () =
-    let isFrameworkHeader (elem : HtmlNode) = elem.HasName("h3") && elem.AttributeValue("id").StartsWith("net-framework")
+    let isFrameworkHeader (elem : HtmlNode) = 
+        match elem.CssSelect("h3") |> List.tryExactlyOne with
+        | Some h3 -> h3.AttributeValue("id").StartsWith("net-framework")
+        | None -> false
+
     async {
         let! msDocs = MsDocs.AsyncGetSample()
-        let main = msDocs.Html.CssSelect("main .content").[0]
+        let mainContents = msDocs.Html.CssSelect("main .content")
         let docsParts = 
-            main.Elements() 
+            mainContents
+            |> List.collect (_.Elements())
             |> List.skipWhile (not << isFrameworkHeader)
             |> List.fold (fun state elem -> 
                 if elem |> isFrameworkHeader || elem.HasName("h2")
